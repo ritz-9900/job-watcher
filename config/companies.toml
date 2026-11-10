@@ -47,6 +47,21 @@ job_url_template = "https://www.google.com/about/careers/applications/jobs/resul
 max_pages = 1
 
 [[company]]
+name = "S&P Global"
+platform = "workday"
+enabled = true
+notes = """Verified live 2026-11-11. careers.spglobal.com links to Workday (SPGI_Careers);
+its robots.txt allows /SPGI_Careers/. Only ~50 India jobs, so instead of keyword searches
+this reads every India listing (Workday's own country filter) and lets [filters] match."""
+[company.params]
+host = "spgi.wd5.myworkdayjobs.com"
+tenant = "spgi"
+site = "SPGI_Careers"
+keywords = []                 # read all India jobs rather than searching
+max_pages = 5                 # 20 per page; India had 54 jobs on 2026-11-11
+applied_facets = { Location_Country = ["c4f78be1a8f14da0ab49ce1162348a5e"] }  # India
+
+[[company]]
 name = "EXL"
 platform = "oracle"
 enabled = true

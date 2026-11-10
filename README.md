@@ -1,8 +1,8 @@
 # Career-page job watcher
 
-Checks company career sites every hour (07:00-00:00 IST), or on demand from the
-dashboard's **Sync** button, and sends a **Telegram alert** and an **email digest** when a
-new job matches your filters, so you can apply within hours of posting.
+Checks company career sites every hour (07:00-00:00 IST), sends a **Telegram alert** and an
+**email digest** when a new job matches your filters, and publishes a dashboard of matching
+jobs to GitHub Pages after every scan, so you can apply within hours of posting.
 
 - Pure Python standard library (3.11+). Nothing to install.
 - Runs free on GitHub Actions (18 scheduled runs/day; public repos have unlimited minutes).
@@ -35,6 +35,7 @@ alerts on jobs that appear after that. This also applies when you add a company 
 | Google | `html_links` | India results per keyword, first page (robots.txt disallows paging); no location shown |
 | Optum | `html_links` (Radancy/TalentBrew) | 15 newest per city page: Bengaluru, Hyderabad, Gurgaon, Pune (robots.txt disallows `/search-jobs/`) |
 | Nomura | `html_links` (SAP SuccessFactors) | all listings, 100 per page (its keyword search does not filter; RSS disallowed) |
+| S&P Global | Workday (`SPGI_Careers`) | all India listings via Workday's country filter (~50 jobs; verified 2026-11-11) |
 
 ## Search keywords
 
@@ -104,29 +105,13 @@ every run from `data.json`:
 - tick a job as **applied** to strike it through, and optionally hide applied jobs.
   Ticks are stored in your browser only (localStorage), not in the repo.
 - a warning next to any company whose source is failing
-- a **Sync** button that runs a scan now and reloads the list when it finishes (about 5 min)
+
+Every scheduled scan republishes the page, so just refresh it. "Updated X min ago" shows
+when the last scan finished. To scan outside the schedule, run **Job watcher** from the
+Actions tab.
 
 It shows matching jobs first seen in the last `dashboard_days` (default 30). Filters are
 re-applied each time the page is built, so editing `settings.toml` updates it too.
-
-### Setting up Sync
-
-A static page can't start a GitHub workflow on its own, and a token must never be put in
-the page's code (the repository is public). So the first time you press Sync, the page
-asks for a **fine-grained personal access token**. It is stored only in that browser's
-localStorage and sent only to `api.github.com`; the page's Content-Security-Policy blocks
-any other destination.
-
-1. GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens**
-   → Generate new token (signed in as the repository owner).
-2. Repository access: **Only select repositories** → this repository.
-3. Repository permissions: **Actions → Read and write**. Leave everything else at "No access".
-4. Pick an expiry date (e.g. 90 days), generate, and paste it into the dashboard.
-
-That token can manage this repository's GitHub Actions runs (start, cancel, re-run, delete
-runs and their logs) and read basic repository metadata. It cannot change code, settings or
-secrets. Use **Remove token** at the bottom of the
-page to delete it from a browser, and revoke it on GitHub if a device is lost.
 
 **Privacy:** on GitHub's free plan, Pages sites are public, even for private repos.
 Anyone with the URL can see the list. The page asks search engines not to index it
@@ -198,7 +183,7 @@ so check the job description.
 - If alerts can't be delivered (e.g. Telegram down and email down), those jobs are retried
   next run instead of being lost.
 - GitHub sometimes starts scheduled runs late or skips one when busy, so with hourly runs an
-  alert can arrive up to about 1.5 hours after a job is posted. Use Sync for an immediate scan.
+  alert can arrive up to about 1.5 hours after a job is posted.
 
 ## Responsible use
 

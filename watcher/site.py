@@ -8,7 +8,6 @@ changes what the dashboard shows.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -84,8 +83,6 @@ def build_data(config: Config, store: Store, now: datetime | None = None) -> dic
     jobs.sort(key=lambda j: (j["posted"] or j["first_seen"][:10], j["first_seen"]), reverse=True)
     return {
         "generated_at": now.isoformat(timespec="seconds"),
-        # Set automatically inside GitHub Actions; used by the dashboard's Sync button.
-        "repository": os.environ.get("GITHUB_REPOSITORY", ""),
         "schedule": SCHEDULE_NOTE,
         "utc_offset_minutes": settings["utc_offset_minutes"],
         "dashboard_days": settings["dashboard_days"],

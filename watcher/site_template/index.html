@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.github.com; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+      content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
 <title>Job Watcher</title>
 <style>
   :root {
@@ -20,7 +20,6 @@
     --new-fg: #0b6b3a;
     --new-bg: #e6f3eb;
     --warn: #9a5b00;
-    --error: #b3261e;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -34,7 +33,6 @@
       --new-fg: #82d3a5;
       --new-bg: #15301f;
       --warn: #e2a95c;
-      --error: #f2b8b5;
     }
   }
   * { box-sizing: border-box; }
@@ -46,44 +44,20 @@
     -webkit-font-smoothing: antialiased;
   }
   main { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
-  a { color: var(--link); }
   header {
-    display: flex; justify-content: space-between; align-items: center;
-    flex-wrap: wrap; gap: 8px 16px; margin-bottom: 20px;
+    display: flex; justify-content: space-between; align-items: baseline;
+    flex-wrap: wrap; gap: 4px 16px; margin-bottom: 20px;
   }
   h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
-  .head-right { display: flex; align-items: center; gap: 12px; }
   .meta { color: var(--muted); font-size: 13px; }
   .meta .warn { color: var(--warn); }
-
-  button {
-    font: inherit; font-size: 13px; color: inherit; background: var(--field);
-    border: 1px solid var(--line); border-radius: 6px; height: 30px; padding: 0 12px; cursor: pointer;
-  }
-  button:hover:not(:disabled) { background: var(--hover); }
-  button:disabled { cursor: default; opacity: 0.6; }
-  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--link); outline-offset: -1px; }
-  .linklike { border: 0; background: none; padding: 0; height: auto; color: var(--link); font-size: 12px; }
-  .linklike:hover:not(:disabled) { background: none; text-decoration: underline; }
-
-  .panel {
-    border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;
-    font-size: 13px;
-  }
-  .panel p { margin: 0 0 8px; }
-  .panel ol { margin: 0 0 10px; padding-left: 18px; color: var(--muted); }
-  .panel .row { display: flex; gap: 8px; flex-wrap: wrap; }
-  .panel input { flex: 1 1 260px; min-width: 0; }
-  .panel .err { color: var(--error); margin-top: 8px; }
-
-  .status { font-size: 13px; color: var(--muted); margin: -8px 0 14px; min-height: 0; }
-  .status.error { color: var(--error); }
+  input:focus-visible, select:focus-visible { outline: 2px solid var(--link); outline-offset: -1px; }
 
   .toolbar {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
     padding-bottom: 14px; border-bottom: 1px solid var(--line);
   }
-  input[type="search"], input[type="password"], select {
+  input[type="search"], select {
     font: inherit; color: inherit; background: var(--field);
     border: 1px solid var(--line); border-radius: 6px; height: 32px; padding: 0 10px;
   }
@@ -118,8 +92,6 @@
   .jobs li.applied .title a { color: var(--muted); font-weight: 400; text-decoration: line-through; }
   .empty { color: var(--muted); text-align: center; padding: 48px 0; }
   footer { margin-top: 40px; color: var(--muted); font-size: 12px; }
-  footer p { margin: 0 0 4px; }
-  [hidden] { display: none !important; }
 
   @media (max-width: 560px) {
     main { padding-top: 20px; }
@@ -135,31 +107,8 @@
 <main>
   <header>
     <h1>Job Watcher</h1>
-    <div class="head-right">
-      <div class="meta" id="meta">Loading…</div>
-      <button type="button" id="sync" title="Scan the career sites now">Sync</button>
-    </div>
+    <div class="meta" id="meta">Loading…</div>
   </header>
-
-  <div class="panel" id="tokenPanel" hidden>
-    <p><strong>Set up Sync (one time)</strong></p>
-    <p>Sync starts a scan on GitHub, so this browser needs a GitHub token that can only run this
-       repository's workflows. The token is saved in this browser only, never in the repository.</p>
-    <ol>
-      <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a fine-grained token</a> while signed in as the repository owner.</li>
-      <li>Repository access: <em>Only select repositories</em> → <span id="repoName">this repository</span>.</li>
-      <li>Repository permissions: <em>Actions</em> → <em>Read and write</em>. Nothing else.</li>
-      <li>Set an expiry date, generate it, and paste it below.</li>
-    </ol>
-    <div class="row">
-      <input type="password" id="tokenInput" placeholder="github_pat_…" autocomplete="off" spellcheck="false" aria-label="GitHub token">
-      <button type="button" id="tokenSave">Save and sync</button>
-      <button type="button" id="tokenCancel">Cancel</button>
-    </div>
-    <div class="err" id="tokenError" hidden></div>
-  </div>
-
-  <div class="status" id="syncStatus" hidden></div>
 
   <div class="toolbar" role="search">
     <input type="search" id="q" placeholder="Filter by title or location   ( / )" aria-label="Filter jobs" autocomplete="off">
@@ -170,10 +119,7 @@
   </div>
 
   <div id="list"></div>
-  <footer>
-    <p id="footer"></p>
-    <p id="tokenNote" hidden>Sync is set up in this browser. <button type="button" class="linklike" id="tokenForget">Remove token</button></p>
-  </footer>
+  <footer id="footer"></footer>
 </main>
 
 <script>
@@ -181,36 +127,21 @@
   "use strict";
 
   var APPLIED_KEY = "jobwatcher.applied.v1";
-  var TOKEN_KEY = "jobwatcher.ghtoken.v1";
-  var WORKFLOW = "watch.yml";
-  var POLL_MS = 8000;
-  var MAX_WAIT_MS = 25 * 60 * 1000;
-
-  var state = { data: null, applied: loadSet(APPLIED_KEY), syncing: false };
+  var state = { data: null, applied: loadApplied() };
   var $ = function (id) { return document.getElementById(id); };
   var el = {
-    meta: $("meta"), sync: $("sync"), syncStatus: $("syncStatus"),
-    tokenPanel: $("tokenPanel"), tokenInput: $("tokenInput"), tokenSave: $("tokenSave"),
-    tokenCancel: $("tokenCancel"), tokenError: $("tokenError"), tokenNote: $("tokenNote"),
-    tokenForget: $("tokenForget"), repoName: $("repoName"),
-    q: $("q"), company: $("company"), newOnly: $("newOnly"), hideApplied: $("hideApplied"),
-    count: $("count"), list: $("list"), footer: $("footer")
+    meta: $("meta"), q: $("q"), company: $("company"), newOnly: $("newOnly"),
+    hideApplied: $("hideApplied"), count: $("count"), list: $("list"), footer: $("footer")
   };
 
-  // ---------- storage (browser only) ----------
-  function loadSet(key) {
-    try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch (e) { return new Set(); }
+  // Applied marks live in this browser only.
+  function loadApplied() {
+    try { return new Set(JSON.parse(localStorage.getItem(APPLIED_KEY) || "[]")); } catch (e) { return new Set(); }
   }
   function saveApplied() {
     try { localStorage.setItem(APPLIED_KEY, JSON.stringify(Array.from(state.applied))); } catch (e) {}
   }
-  function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } }
-  function setToken(t) {
-    try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) {}
-    el.tokenNote.hidden = !getToken();
-  }
 
-  // ---------- helpers ----------
   function node(tag, className, text) {
     var n = document.createElement(tag);
     if (className) n.className = className;
@@ -230,22 +161,8 @@
     if (hrs < 48) return hrs + " h ago";
     return Math.round(hrs / 24) + " days ago";
   }
-  function elapsed(ms) {
-    var s = Math.max(0, Math.round(ms / 1000));
-    return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
-  }
   function safeUrl(url) { return /^https:\/\//i.test(url || "") ? url : null; }
 
-  function repository() {
-    if (state.data && state.data.repository) return state.data.repository;
-    // Fallback for <owner>.github.io/<repo>/
-    if (!/\.github\.io$/i.test(location.hostname)) return "";
-    var owner = location.hostname.split(".")[0];
-    var repo = location.pathname.split("/").filter(Boolean)[0];
-    return owner && repo ? owner + "/" + repo : "";
-  }
-
-  // ---------- rendering ----------
   function renderMeta() {
     var d = state.data;
     if (!d) return;
@@ -260,7 +177,7 @@
       el.meta.appendChild(node("span", "warn", failing.length + " not responding"));
     }
     el.footer.textContent = "Showing matching jobs first seen in the last " + d.dashboard_days +
-      " days. " + (d.schedule ? "Automatic scans: " + d.schedule + ". " : "") +
+      " days. " + (d.schedule ? "Scans run " + d.schedule + "; refresh to see the latest. " : "") +
       "Applied marks are stored in this browser only.";
   }
 
@@ -353,156 +270,6 @@
     });
   }
 
-  function loadData() {
-    // Query string bypasses the Pages CDN cache so a finished sync shows immediately.
-    return fetch("data.json?t=" + Date.now(), { cache: "no-store" })
-      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (data) {
-        state.data = data;
-        el.repoName.textContent = repository() || "this repository";
-        renderMeta();
-        renderCompanyOptions();
-        render();
-        return data;
-      });
-  }
-
-  // ---------- sync (runs the GitHub workflow) ----------
-  function status(text, isError, link) {
-    el.syncStatus.hidden = !text;
-    el.syncStatus.className = "status" + (isError ? " error" : "");
-    el.syncStatus.textContent = text || "";
-    if (link) {
-      el.syncStatus.appendChild(document.createTextNode(" "));
-      var a = node("a", null, link.label);
-      a.href = link.href; a.target = "_blank"; a.rel = "noopener noreferrer";
-      el.syncStatus.appendChild(a);
-    }
-  }
-
-  function setSyncing(on) {
-    state.syncing = on;
-    el.sync.disabled = on;
-    el.sync.textContent = on ? "Syncing…" : "Sync";
-  }
-
-  function gh(path, options) {
-    var opts = options || {};
-    opts.headers = {
-      "Accept": "application/vnd.github+json",
-      "Authorization": "Bearer " + getToken(),
-      "X-GitHub-Api-Version": "2022-11-28"
-    };
-    return fetch("https://api.github.com" + path, opts);
-  }
-
-  function showTokenPanel(message) {
-    el.tokenPanel.hidden = false;
-    el.tokenError.hidden = !message;
-    el.tokenError.textContent = message || "";
-    el.tokenInput.value = "";
-    el.tokenInput.focus();
-  }
-
-  function startSync() {
-    if (state.syncing) return;
-    var repo = repository();
-    if (!repo) { status("Could not work out which repository this dashboard belongs to.", true); return; }
-    if (!getToken()) { showTokenPanel(""); return; }
-
-    setSyncing(true);
-    status("Starting scan…");
-    var startedAt = Date.now();
-
-    gh("/repos/" + repo + "/actions/workflows/" + WORKFLOW + "/dispatches", {
-      method: "POST",
-      body: JSON.stringify({ ref: "main" })
-    }).then(function (r) {
-      if (r.status === 204) return poll(repo, startedAt);
-      if (r.status === 401) {
-        setToken("");
-        setSyncing(false);
-        status("");
-        showTokenPanel("GitHub rejected the token (expired or revoked). Paste a new one.");
-        return;
-      }
-      if (r.status === 403 || r.status === 404) {
-        setSyncing(false);
-        status("This token can't run workflows on " + repo + ". It needs Actions: Read and write for this repository.", true);
-        return;
-      }
-      setSyncing(false);
-      status("Could not start the scan (GitHub returned " + r.status + ").", true);
-    }).catch(function () {
-      setSyncing(false);
-      status("Could not reach GitHub. Check your connection and try again.", true);
-    });
-  }
-
-  function poll(repo, startedAt) {
-    var runsPath = "/repos/" + repo + "/actions/workflows/" + WORKFLOW + "/runs?event=workflow_dispatch&per_page=5";
-    return new Promise(function (resolve) {
-      function tick() {
-        if (Date.now() - startedAt > MAX_WAIT_MS) {
-          setSyncing(false);
-          status("Still running after 25 minutes. Check it on GitHub.", true,
-                 { label: "Open Actions", href: "https://github.com/" + repo + "/actions" });
-          return resolve();
-        }
-        gh(runsPath).then(function (r) { return r.ok ? r.json() : null; }).then(function (body) {
-          var runs = (body && body.workflow_runs) || [];
-          // Our run: the newest manual run created after the click (2 min allowance for clock skew).
-          var run = runs.filter(function (x) { return new Date(x.created_at).getTime() >= startedAt - 120000; })[0];
-          var since = elapsed(Date.now() - startedAt);
-          if (!run) {
-            status("Waiting for GitHub to start the scan… " + since);
-          } else if (run.status !== "completed") {
-            status((run.status === "in_progress" ? "Scanning career sites… " : "Queued… ") + since +
-                   " (a scan takes about 5 minutes)", false, { label: "View run", href: run.html_url });
-          } else if (run.conclusion === "success") {
-            status("Scan finished. Loading results…");
-            // Give Pages a few seconds to serve the new files.
-            setTimeout(function () {
-              loadData().then(function () {
-                setSyncing(false);
-                status("Updated " + stampFmt.format(new Date()) + " IST.");
-                setTimeout(function () { if (!state.syncing) status(""); }, 8000);
-              }).catch(function () {
-                setSyncing(false);
-                status("Scan finished, but the new results did not load yet. Refresh in a minute.", true);
-              });
-              resolve();
-            }, 10000);
-            return;
-          } else {
-            setSyncing(false);
-            status("Scan " + run.conclusion + ".", true, { label: "View run", href: run.html_url });
-            return resolve();
-          }
-          setTimeout(tick, POLL_MS);
-        }).catch(function () { setTimeout(tick, POLL_MS); });
-      }
-      setTimeout(tick, 3000);
-    });
-  }
-
-  el.sync.addEventListener("click", startSync);
-  el.tokenSave.addEventListener("click", function () {
-    var t = el.tokenInput.value.trim();
-    if (!/^(github_pat_|ghp_)[A-Za-z0-9_]+$/.test(t)) {
-      el.tokenError.hidden = false;
-      el.tokenError.textContent = "That doesn't look like a GitHub token (it should start with github_pat_).";
-      return;
-    }
-    setToken(t);
-    el.tokenPanel.hidden = true;
-    startSync();
-  });
-  el.tokenInput.addEventListener("keydown", function (e) { if (e.key === "Enter") el.tokenSave.click(); });
-  el.tokenCancel.addEventListener("click", function () { el.tokenPanel.hidden = true; });
-  el.tokenForget.addEventListener("click", function () { setToken(""); status("Token removed from this browser."); });
-
-  // ---------- filters ----------
   el.q.addEventListener("input", render);
   [el.company, el.newOnly, el.hideApplied].forEach(function (input) { input.addEventListener("change", render); });
   document.addEventListener("keydown", function (e) {
@@ -511,13 +278,21 @@
     if (e.key === "Escape" && document.activeElement === el.q) { el.q.value = ""; render(); }
   });
 
-  setToken(getToken());
   setInterval(renderMeta, 60000);
-  loadData().catch(function () {
-    el.meta.textContent = "";
-    el.list.textContent = "";
-    el.list.appendChild(node("p", "empty", "Could not load job data. The first watcher run may not have finished yet."));
-  });
+  // Query string bypasses the Pages CDN cache so a refresh shows the latest scan.
+  fetch("data.json?t=" + Date.now(), { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function (data) {
+      state.data = data;
+      renderMeta();
+      renderCompanyOptions();
+      render();
+    })
+    .catch(function () {
+      el.meta.textContent = "";
+      el.list.textContent = "";
+      el.list.appendChild(node("p", "empty", "Could not load job data. The first watcher run may not have finished yet."));
+    });
 })();
 </script>
 </body>
