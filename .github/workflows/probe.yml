@@ -1,0 +1,33 @@
+name: Probe career sites
+
+# Manual diagnostic: checks each enabled company's endpoint from GitHub's servers and
+# prints a sample of jobs (plus Workday facet ids). Does not send alerts or save state.
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Exact company name to probe (leave empty for all enabled)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Probe
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          if [ -n "$ONLY" ]; then
+            python -m watcher probe --only "$ONLY"
+          else
+            python -m watcher probe
+          fi

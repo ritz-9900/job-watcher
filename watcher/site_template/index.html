@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Job Watcher</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1c1c1c;
+    --muted: #6e6e6e;
+    --line: #e7e7e7;
+    --hover: #f7f7f7;
+    --field: #ffffff;
+    --link: #0b57d0;
+    --new-fg: #0b6b3a;
+    --new-bg: #e6f3eb;
+    --warn: #9a5b00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121315;
+      --fg: #e6e6e6;
+      --muted: #9b9b9b;
+      --line: #26282c;
+      --hover: #1a1c1f;
+      --field: #17191c;
+      --link: #8ab4f8;
+      --new-fg: #82d3a5;
+      --new-bg: #15301f;
+      --warn: #e2a95c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
+  header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    flex-wrap: wrap; gap: 4px 16px; margin-bottom: 20px;
+  }
+  h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .meta .warn { color: var(--warn); }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+    padding-bottom: 14px; border-bottom: 1px solid var(--line);
+  }
+  input[type="search"], select {
+    font: inherit; color: inherit; background: var(--field);
+    border: 1px solid var(--line); border-radius: 6px; height: 32px; padding: 0 10px;
+  }
+  input[type="search"] { flex: 1 1 260px; min-width: 0; }
+  input[type="search"]:focus, select:focus { outline: 2px solid var(--link); outline-offset: -1px; }
+  .toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; cursor: pointer; }
+  .count { margin-left: auto; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+  section { margin-top: 28px; }
+  section h2 { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+  section h2 .n { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+  section h2 .status { color: var(--warn); font-weight: 400; font-size: 12px; }
+
+  ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  li {
+    display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 2px 12px;
+    align-items: start; padding: 9px 6px; border-bottom: 1px solid var(--line);
+  }
+  li:hover { background: var(--hover); }
+  li input { margin: 3px 0 0; cursor: pointer; }
+  .title a { color: var(--fg); text-decoration: none; font-weight: 500; }
+  .title a:hover { color: var(--link); text-decoration: underline; }
+  .title a:visited { color: var(--muted); }
+  .sub { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .date { color: var(--muted); font-size: 13px; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+  .tag {
+    display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px;
+    font-size: 11px; font-weight: 600; line-height: 17px; vertical-align: 1px;
+    color: var(--new-fg); background: var(--new-bg);
+  }
+  li.applied .title a { color: var(--muted); font-weight: 400; text-decoration: line-through; }
+  .empty { color: var(--muted); text-align: center; padding: 48px 0; }
+  footer { margin-top: 40px; color: var(--muted); font-size: 12px; }
+
+  select { max-width: 100%; min-width: 0; }
+  .title { overflow-wrap: anywhere; }
+
+  @media (max-width: 560px) {
+    main { padding-top: 20px; }
+    input[type="search"] { flex-basis: 100%; }
+    select { flex: 1 1 100%; }
+    li { grid-template-columns: 18px minmax(0, 1fr); }
+    .date { grid-column: 2; text-align: left; }
+    .count { margin-left: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Job Watcher</h1>
+    <div class="meta" id="meta">Loading…</div>
+  </header>
+
+  <div class="toolbar" role="search">
+    <input type="search" id="q" placeholder="Filter by title or location   ( / )" aria-label="Filter jobs" autocomplete="off">
+    <select id="company" aria-label="Company"></select>
+    <label class="toggle"><input type="checkbox" id="newOnly"> New (24h)</label>
+    <label class="toggle"><input type="checkbox" id="hideApplied"> Hide applied</label>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div id="list"></div>
+  <footer id="footer"></footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORE_KEY = "jobwatcher.applied.v1";
+  var state = { data: null, applied: loadApplied() };
+  var el = {
+    meta: document.getElementById("meta"),
+    q: document.getElementById("q"),
+    company: document.getElementById("company"),
+    newOnly: document.getElementById("newOnly"),
+    hideApplied: document.getElementById("hideApplied"),
+    count: document.getElementById("count"),
+    list: document.getElementById("list"),
+    footer: document.getElementById("footer")
+  };
+
+  function loadApplied() {
+    try { return new Set(JSON.parse(localStorage.getItem(STORE_KEY) || "[]")); }
+    catch (e) { return new Set(); }
+  }
+  function saveApplied() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(Array.from(state.applied))); } catch (e) {}
+  }
+
+  function node(tag, className, text) {
+    var n = document.createElement(tag);
+    if (className) n.className = className;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  var dateFmt = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+  var stampFmt = new Intl.DateTimeFormat("en-IN", {
+    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Kolkata"
+  });
+
+  function fmtDay(isoDate) { return dateFmt.format(new Date(isoDate + "T12:00:00+05:30")); }
+
+  function ago(iso) {
+    var mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + " min ago";
+    var hrs = Math.round(mins / 60);
+    if (hrs < 48) return hrs + " h ago";
+    return Math.round(hrs / 24) + " days ago";
+  }
+
+  function safeUrl(url) { return /^https:\/\//i.test(url || "") ? url : null; }
+
+  function renderMeta() {
+    var d = state.data;
+    el.meta.textContent = "";
+    var updated = node("span", null, "Updated " + ago(d.generated_at));
+    updated.title = stampFmt.format(new Date(d.generated_at)) + " IST";
+    el.meta.appendChild(updated);
+    var failing = d.companies.filter(function (c) { return c.status === "error" || c.status === "empty"; });
+    el.meta.appendChild(document.createTextNode(" · " + d.companies.length + " sources"));
+    if (failing.length) {
+      el.meta.appendChild(document.createTextNode(" · "));
+      el.meta.appendChild(node("span", "warn", failing.length + " not responding"));
+    }
+    el.footer.textContent = "Showing matching jobs first seen in the last " + d.dashboard_days +
+      " days. Applied marks are stored in this browser only.";
+  }
+
+  function renderCompanyOptions() {
+    var current = el.company.value;
+    el.company.textContent = "";
+    var all = node("option", null, "All companies");
+    all.value = "";
+    el.company.appendChild(all);
+    state.data.companies.forEach(function (c) {
+      var o = node("option", null, c.name + " (" + c.count + ")");
+      o.value = c.name;
+      el.company.appendChild(o);
+    });
+    el.company.value = current;
+  }
+
+  function matches(job, q) {
+    if (el.company.value && job.company !== el.company.value) return false;
+    if (el.newOnly.checked && !job.new) return false;
+    if (el.hideApplied.checked && state.applied.has(job.url)) return false;
+    if (q) {
+      var hay = (job.title + " " + job.location).toLowerCase();
+      return q.split(/\s+/).every(function (term) { return hay.indexOf(term) !== -1; });
+    }
+    return true;
+  }
+
+  function jobRow(job) {
+    var li = node("li");
+    if (state.applied.has(job.url)) li.classList.add("applied");
+
+    var box = node("input");
+    box.type = "checkbox";
+    box.checked = state.applied.has(job.url);
+    box.title = "Mark as applied";
+    box.setAttribute("aria-label", "Applied: " + job.title);
+    box.addEventListener("change", function () {
+      if (box.checked) state.applied.add(job.url); else state.applied.delete(job.url);
+      saveApplied();
+      if (el.hideApplied.checked) render(); else li.classList.toggle("applied", box.checked);
+    });
+
+    var main = node("div");
+    var title = node("div", "title");
+    var href = safeUrl(job.url);
+    var a = node(href ? "a" : "span", null, job.title || "(untitled)");
+    if (href) { a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer"; }
+    title.appendChild(a);
+    if (job.new) title.appendChild(node("span", "tag", "New"));
+    main.appendChild(title);
+    main.appendChild(node("div", "sub", job.location || "Location not listed"));
+
+    var date = node("div", "date",
+      job.posted ? "Posted " + fmtDay(job.posted) : "Seen " + fmtDay(job.first_seen.slice(0, 10)));
+
+    li.appendChild(box);
+    li.appendChild(main);
+    li.appendChild(date);
+    return li;
+  }
+
+  function render() {
+    var q = el.q.value.trim().toLowerCase();
+    var visible = state.data.jobs.filter(function (j) { return matches(j, q); });
+    el.count.textContent = visible.length + (visible.length === 1 ? " job" : " jobs");
+    el.list.textContent = "";
+
+    if (!visible.length) {
+      el.list.appendChild(node("p", "empty", state.data.jobs.length ? "No jobs match these filters." : "No matching jobs yet."));
+      return;
+    }
+
+    var byCompany = {};
+    visible.forEach(function (j) { (byCompany[j.company] = byCompany[j.company] || []).push(j); });
+
+    state.data.companies.forEach(function (c) {
+      var jobs = byCompany[c.name];
+      if (!jobs) return;
+      var section = node("section");
+      var h2 = node("h2", null, c.name);
+      h2.appendChild(node("span", "n", String(jobs.length)));
+      if (c.status === "error") h2.appendChild(node("span", "status", "source failing, list may be stale"));
+      if (c.status === "empty") h2.appendChild(node("span", "status", "source returned no jobs recently"));
+      section.appendChild(h2);
+      var ul = node("ul");
+      jobs.forEach(function (j) { ul.appendChild(jobRow(j)); });
+      section.appendChild(ul);
+      el.list.appendChild(section);
+    });
+  }
+
+  [el.q].forEach(function (input) { input.addEventListener("input", render); });
+  [el.company, el.newOnly, el.hideApplied].forEach(function (input) { input.addEventListener("change", render); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "/" && document.activeElement !== el.q) { e.preventDefault(); el.q.focus(); }
+    if (e.key === "Escape" && document.activeElement === el.q) { el.q.value = ""; render(); }
+  });
+
+  fetch("data.json", { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function (data) {
+      state.data = data;
+      renderMeta();
+      renderCompanyOptions();
+      render();
+    })
+    .catch(function () {
+      el.meta.textContent = "";
+      el.list.textContent = "";
+      el.list.appendChild(node("p", "empty", "Could not load job data. The first watcher run may not have finished yet."));
+    });
+})();
+</script>
+</body>
+</html>

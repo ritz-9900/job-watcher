@@ -1,0 +1,33 @@
+# Global settings and default filters. Every company uses these filters unless its
+# entry in companies.toml has its own [company.filters] table (which overrides
+# individual keys).
+
+[settings]
+request_delay_seconds = 1.5           # pause between requests to the same site
+timeout_seconds = 20
+max_detail_fetches_per_company = 20   # job-description fetches per run (for experience filter)
+health_alert_after_runs = 3           # alert if a site fails / returns 0 jobs this many runs in a row
+prune_after_days = 45                 # forget jobs not seen for this long
+utc_offset_minutes = 330              # IST, used for dates in alerts
+telegram_max_individual_messages = 15 # beyond this, remaining jobs are grouped into one message
+dashboard_days = 21                   # dashboard shows matching jobs first seen within this many days
+
+[filters]
+# PLACEHOLDERS: replace with your real filters.
+# Matching rules:
+#  - Keywords match whole words, case-insensitive ("AI" will not match "maintain").
+#  - title_include: the title must contain at least one keyword. Empty list = any title.
+#  - locations: the location must contain at least one entry. Empty list = anywhere.
+#    Jobs with no location, or just "3 Locations", are kept.
+#  - min/max_experience: compared with the "X years" requirement parsed from the job
+#    description. Jobs that state no experience are kept. Delete both lines to turn this off.
+#  - max_age_days: skip jobs posted longer ago than this (when the site shows a date).
+
+title_include = []   # e.g. ["AI", "GenAI", "Generative AI", "LLM", "Machine Learning", "Data Scientist", "Python"]
+title_exclude = ["intern", "internship", "apprentice"]
+locations = ["India", "Bengaluru", "Bangalore", "Gurugram", "Gurgaon", "Noida", "Delhi",
+             "Hyderabad", "Mumbai", "Pune", "Chennai"]
+locations_exclude = []
+# min_experience = 2
+# max_experience = 6
+max_age_days = 14

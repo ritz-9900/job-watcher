@@ -1,0 +1,107 @@
+name: Job watcher
+
+on:
+  schedule:
+    # Every 30 minutes, 02:00-18:30 UTC = 07:30-00:00 IST. About 34 runs/day.
+    # GitHub may start scheduled runs late (sometimes 5-30+ min) when busy.
+    - cron: "*/30 2-18 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print matches in the log instead of sending alerts"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # save state to the watcher-state branch
+
+concurrency:
+  group: job-watcher
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore state
+        run: |
+          mkdir -p .state
+          if git fetch --depth=1 origin watcher-state 2>/dev/null; then
+            git show FETCH_HEAD:state.json > .state/state.json || rm -f .state/state.json
+            echo "Restored state from watcher-state branch"
+          else
+            echo "No saved state yet (first run): every company will be seeded silently"
+          fi
+
+      - name: Run watcher
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            python -m watcher run --state .state/state.json --dry-run
+          else
+            python -m watcher run --state .state/state.json
+          fi
+
+      - name: Save state
+        # Stores state.json as a single commit on the watcher-state branch (force-pushed),
+        # so the branch never grows. Runs even if the watcher step failed.
+        if: always()
+        env:
+          GIT_AUTHOR_NAME: job-watcher-bot
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: job-watcher-bot
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          [ -f .state/state.json ] || { echo "No state to save"; exit 0; }
+          blob=$(git hash-object -w .state/state.json)
+          previous=$(git rev-parse --verify --quiet FETCH_HEAD:state.json || true)
+          if [ "$blob" = "$previous" ]; then echo "State unchanged"; exit 0; fi
+          tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
+          commit=$(git commit-tree "$tree" -m "Watcher state $(date -u +%Y-%m-%dT%H:%MZ)")
+          git push --force --quiet origin "$commit:refs/heads/watcher-state"
+          echo "State saved"
+
+      - name: Build dashboard
+        if: always()
+        run: |
+          [ -f .state/state.json ] || { echo "No state yet"; exit 0; }
+          python -m watcher site --state .state/state.json --out _site
+
+      - name: Upload dashboard
+        if: always() && hashFiles('_site/index.html') != ''
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  publish:
+    # Deploys the dashboard to GitHub Pages. Requires Settings -> Pages -> Source:
+    # "GitHub Actions". If Pages is not enabled this job fails on its own and does
+    # not affect alerts or saved state.
+    needs: watch
+    if: always() && needs.watch.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

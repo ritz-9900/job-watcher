@@ -1,0 +1,82 @@
+# Companies to watch. Adding a company on an already-supported platform only needs
+# a new [[company]] block here. No code changes.
+#
+# Easiest way to get the values: open any job at that company on your phone or a
+# personal computer, copy the job's URL, then run (offline, safe anywhere):
+#     python -m watcher detect "<job url>" --name "Company"
+#
+# Supported platforms: workday, oracle, eightfold, greenhouse, lever, html_links
+#
+# STATUS: none of the endpoints below have been tested live yet (they were not tested
+# from the work laptop, on purpose). Run the "Probe career sites" GitHub workflow to
+# confirm each one before relying on it.
+
+[[company]]
+name = "JPMorgan Chase"
+platform = "oracle"
+enabled = true
+notes = "Verified live 2026-11-10: anonymous API works, ~7,000 jobs, newest first."
+[company.params]
+host = "jpmc.fa.oraclecloud.com"
+site_number = "CX_1001"
+# keyword = "machine learning"   # optional: narrow the search on JPMC's side
+# location_id = ""               # optional: Oracle location id (see README)
+
+[[company]]
+name = "American Express"
+platform = "oracle"
+enabled = true
+notes = """Verified live 2026-11-10. Amex moved from Eightfold to Oracle Recruiting Cloud;
+the public site is careers.americanexpress.com/en/sites/CX_1, the API is on the oraclecloud host."""
+[company.params]
+host = "egug.fa.us2.oraclecloud.com"
+public_host = "careers.americanexpress.com"
+site_number = "CX_1"
+
+[[company]]
+name = "Google"
+platform = "html_links"
+enabled = true
+notes = """Parses Google's job-results HTML (most fragile entry). google.com/robots.txt
+disallows the page= parameter for crawlers, so only the first results page (newest, sorted
+by date) is read. Running every 30 minutes, that page should still catch new postings."""
+[company.params]
+url = "https://www.google.com/about/careers/applications/jobs/results?location=India&sort_by=date"
+link_pattern = 'href="jobs/results/(?P<id>\d{6,})-(?P<slug>[a-z0-9-]+)[^"]*"\s+aria-label="Learn more about (?P<title>[^"]+)"'
+job_url_template = "https://www.google.com/about/careers/applications/jobs/results/{id}-{slug}"
+max_pages = 1
+
+[[company]]
+name = "EXL"
+platform = "oracle"
+enabled = true
+notes = "Verified live 2026-11-10: ~2,400 jobs, newest first. No robots.txt on the host."
+[company.params]
+host = "fa-ewjt-saasfaprod1.fa.ocs.oraclecloud.com"
+site_number = "CX_2"
+
+[[company]]
+name = "Optum"
+platform = "html_links"
+enabled = true
+notes = """Verified live 2026-11-10. careers.unitedhealthgroup.com is a Radancy/TalentBrew site.
+robots.txt disallows /search-jobs/, so this reads the India *location* page (allowed),
+which lists the 15 newest India jobs. The p= paging parameter is ignored by the site."""
+[company.params]
+url = "https://careers.unitedhealthgroup.com/location/india-jobs/34088/1269750/2"
+link_pattern = '(?s)href="(?P<path>/job/[^"/]+/[^"/]+/34088/(?P<id>\d+))"[^>]*>\s*<div>\s*<h2>(?P<title>[^<]+)</h2>.*?class="job-location[^"]*">(?P<location>[^<]+)<'
+job_url_template = "https://careers.unitedhealthgroup.com{path}"
+max_pages = 1
+
+[[company]]
+name = "Nomura"
+platform = "html_links"
+enabled = true
+notes = """Verified live 2026-11-10. careers.nomura.com is SAP SuccessFactors. robots.txt
+disallows /services/ (the RSS feed), so this reads the /search/ results page sorted by
+date (allowed): the 25 newest jobs worldwide; the location filter keeps the India ones."""
+[company.params]
+url = "https://careers.nomura.com/search/?q=&sortColumn=referencedate&sortDirection=desc"
+link_pattern = '(?s)<tr class="data-row">.*?<a href="(?P<path>/Nomura/job/[^"]+/(?P<id>\d+)/)" class="jobTitle-link">(?P<title>[^<]+)</a>.*?<td class="colLocation[^"]*"[^>]*>\s*<span class="jobLocation">(?P<location>[^<]+)</span>'
+job_url_template = "https://careers.nomura.com{path}"
+max_pages = 1
