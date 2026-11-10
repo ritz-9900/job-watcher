@@ -13,6 +13,11 @@ telegram_max_individual_messages = 15 # beyond this, remaining jobs are grouped 
 dashboard_days = 30                   # dashboard shows matching jobs first seen within this many days
 alert_max_age_days = 3                # only alert for jobs posted within this many days (older finds: dashboard only)
 
+[dashboard]
+# Applied marks sync across devices through an encrypted Gist that the dashboard creates
+# and finds automatically. Only set this to pin a specific Gist id.
+sync_gist_id = ""
+
 [search]
 # Sent to each site's own search box (where the platform supports it and robots.txt
 # allows it), so each run reads relevant jobs instead of only the newest listings.

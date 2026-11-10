@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+      content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.github.com; img-src 'self' data:; base-uri 'none'; form-action 'none'">
 <title>Job Watcher</title>
 <style>
   :root {
@@ -20,6 +20,8 @@
     --new-fg: #0b6b3a;
     --new-bg: #e6f3eb;
     --warn: #9a5b00;
+    --error: #b3261e;
+    --ok: #0b6b3a;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -33,6 +35,8 @@
       --new-fg: #82d3a5;
       --new-bg: #15301f;
       --warn: #e2a95c;
+      --error: #f2b8b5;
+      --ok: #82d3a5;
     }
   }
   * { box-sizing: border-box; }
@@ -44,20 +48,52 @@
     -webkit-font-smoothing: antialiased;
   }
   main { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
+  a { color: var(--link); }
+  [hidden] { display: none !important; }
+
   header {
-    display: flex; justify-content: space-between; align-items: baseline;
+    display: flex; justify-content: space-between; align-items: flex-start;
     flex-wrap: wrap; gap: 4px 16px; margin-bottom: 20px;
   }
   h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
-  .meta { color: var(--muted); font-size: 13px; }
+  .head-right { text-align: right; }
+  .meta, .syncline { color: var(--muted); font-size: 13px; }
+  .syncline { margin-top: 2px; }
   .meta .warn { color: var(--warn); }
-  input:focus-visible, select:focus-visible { outline: 2px solid var(--link); outline-offset: -1px; }
+  .syncline .ok { color: var(--ok); }
+  .syncline .err { color: var(--error); }
+
+  button {
+    font: inherit; font-size: 13px; color: inherit; background: var(--field);
+    border: 1px solid var(--line); border-radius: 6px; height: 32px; padding: 0 12px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button:disabled { cursor: default; opacity: 0.6; }
+  .linkbtn {
+    border: 0; background: none; height: auto; padding: 0; color: var(--link); font-size: 13px;
+  }
+  .linkbtn:hover:not(:disabled) { background: none; text-decoration: underline; }
+  input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--link); outline-offset: -1px; }
+
+  .panel {
+    border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; font-size: 13px;
+  }
+  .panel h2 { font-size: 14px; font-weight: 600; margin: 0 0 6px; }
+  .panel p { margin: 0 0 8px; }
+  .panel ol { margin: 0 0 12px; padding-left: 18px; color: var(--muted); }
+  .panel ol li { margin-bottom: 2px; }
+  .panel .fields { display: grid; gap: 8px; max-width: 460px; }
+  .panel .fields input { width: 100%; }
+  .panel .actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .panel .hint { color: var(--muted); margin-top: 8px; }
+  .panel .error { color: var(--error); margin-top: 8px; }
+  .panel .toggle { margin-top: 4px; }
 
   .toolbar {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
     padding-bottom: 14px; border-bottom: 1px solid var(--line);
   }
-  input[type="search"], select {
+  input[type="search"], input[type="password"], select {
     font: inherit; color: inherit; background: var(--field);
     border: 1px solid var(--line); border-radius: 6px; height: 32px; padding: 0 10px;
   }
@@ -95,6 +131,7 @@
 
   @media (max-width: 560px) {
     main { padding-top: 20px; }
+    .head-right { text-align: left; }
     input[type="search"] { flex-basis: 100%; }
     select { flex: 1 1 100%; }
     .jobs li { grid-template-columns: 18px minmax(0, 1fr); }
@@ -107,8 +144,66 @@
 <main>
   <header>
     <h1>Job Watcher</h1>
-    <div class="meta" id="meta">Loading…</div>
+    <div class="head-right">
+      <div class="meta" id="meta">Loading…</div>
+      <div class="syncline" id="syncLine"></div>
+    </div>
   </header>
+
+  <!-- Set up sync (first device) -->
+  <div class="panel" id="setupPanel" hidden>
+    <h2>Sync applied marks across devices</h2>
+    <p>Your marks and a GitHub token are saved, encrypted with your passphrase, in a Gist on your
+       GitHub account. On other devices you only type the passphrase.</p>
+    <ol>
+      <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a fine-grained token</a>
+          (signed in as the owner of this dashboard).</li>
+      <li>Repository access: <em>Public repositories</em>. Account permissions: <em>Gists → Read and write</em>. Nothing else.</li>
+      <li>Choose an expiry (e.g. 1 year), generate it, and paste it below.</li>
+    </ol>
+    <div class="fields">
+      <input type="password" id="setupToken" placeholder="Token (github_pat_…)" autocomplete="off" spellcheck="false" aria-label="GitHub token">
+      <input type="password" id="setupPass" placeholder="Passphrase (16+ characters)" autocomplete="new-password" aria-label="Passphrase">
+      <input type="password" id="setupPass2" placeholder="Passphrase again" autocomplete="new-password" aria-label="Repeat passphrase">
+    </div>
+    <p class="hint">Use four or more random words, e.g. <em>maple orbit candle tuesday</em>. The encrypted
+       data is publicly downloadable, so a short passphrase could be guessed. It cannot be recovered if forgotten.</p>
+    <label class="toggle"><input type="checkbox" id="setupRemember" checked> Remember on this device</label>
+    <div class="actions">
+      <button type="button" id="setupGo">Turn on sync</button>
+      <button type="button" class="linkbtn" data-close>Cancel</button>
+    </div>
+    <div class="error" id="setupError" hidden></div>
+  </div>
+
+  <!-- Unlock (other devices) -->
+  <div class="panel" id="unlockPanel" hidden>
+    <h2>Enter your sync passphrase</h2>
+    <div class="fields">
+      <input type="password" id="unlockPass" placeholder="Passphrase" autocomplete="current-password" aria-label="Passphrase">
+    </div>
+    <label class="toggle"><input type="checkbox" id="unlockRemember" checked> Remember on this device</label>
+    <div class="actions">
+      <button type="button" id="unlockGo">Unlock</button>
+      <button type="button" class="linkbtn" data-close>Cancel</button>
+    </div>
+    <div class="error" id="unlockError" hidden></div>
+  </div>
+
+  <!-- Renew an expired or revoked token -->
+  <div class="panel" id="renewPanel" hidden>
+    <h2>Sync token stopped working</h2>
+    <p>It has probably expired. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a new token</a>
+       the same way (Gists → Read and write) and paste it here. Your passphrase stays the same.</p>
+    <div class="fields">
+      <input type="password" id="renewToken" placeholder="New token (github_pat_…)" autocomplete="off" spellcheck="false" aria-label="New GitHub token">
+    </div>
+    <div class="actions">
+      <button type="button" id="renewGo">Save token</button>
+      <button type="button" class="linkbtn" data-close>Cancel</button>
+    </div>
+    <div class="error" id="renewError" hidden></div>
+  </div>
 
   <div class="toolbar" role="search">
     <input type="search" id="q" placeholder="Filter by title or location   ( / )" aria-label="Filter jobs" autocomplete="off">
@@ -126,22 +221,333 @@
 (function () {
   "use strict";
 
-  var APPLIED_KEY = "jobwatcher.applied.v1";
-  var state = { data: null, applied: loadApplied() };
+  var APPLIED_KEY = "jobwatcher.applied.v1";      // local copy of marks (works without sync)
+  var GIST_KEY = "jobwatcher.gist.v1";            // cached Gist id
+  var SYNC_FILE = "job-watcher-sync.json";
+  var KDF_ITERATIONS = 600000;
+  var MIN_PASSPHRASE = 16;
+
   var $ = function (id) { return document.getElementById(id); };
   var el = {
-    meta: $("meta"), q: $("q"), company: $("company"), newOnly: $("newOnly"),
-    hideApplied: $("hideApplied"), count: $("count"), list: $("list"), footer: $("footer")
+    meta: $("meta"), syncLine: $("syncLine"),
+    setupPanel: $("setupPanel"), setupToken: $("setupToken"), setupPass: $("setupPass"),
+    setupPass2: $("setupPass2"), setupRemember: $("setupRemember"), setupGo: $("setupGo"), setupError: $("setupError"),
+    unlockPanel: $("unlockPanel"), unlockPass: $("unlockPass"), unlockRemember: $("unlockRemember"),
+    unlockGo: $("unlockGo"), unlockError: $("unlockError"),
+    renewPanel: $("renewPanel"), renewToken: $("renewToken"), renewGo: $("renewGo"), renewError: $("renewError"),
+    q: $("q"), company: $("company"), newOnly: $("newOnly"), hideApplied: $("hideApplied"),
+    count: $("count"), list: $("list"), footer: $("footer")
   };
+  var state = { data: null, applied: loadApplied() };
 
-  // Applied marks live in this browser only.
+  // ===================== local storage =====================
   function loadApplied() {
     try { return new Set(JSON.parse(localStorage.getItem(APPLIED_KEY) || "[]")); } catch (e) { return new Set(); }
   }
   function saveApplied() {
     try { localStorage.setItem(APPLIED_KEY, JSON.stringify(Array.from(state.applied))); } catch (e) {}
   }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} }
 
+  // IndexedDB holds the derived key as a non-extractable CryptoKey ("remember on this device").
+  // The passphrase itself is never stored.
+  function idb() {
+    return new Promise(function (resolve, reject) {
+      var req = indexedDB.open("jobwatcher", 1);
+      req.onupgradeneeded = function () { req.result.createObjectStore("kv"); };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  function kv(mode, fn) {
+    return idb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var r = fn(db.transaction("kv", mode).objectStore("kv"));
+        r.onsuccess = function () { resolve(r.result); };
+        r.onerror = function () { reject(r.error); };
+      });
+    });
+  }
+  var kvGet = function (k) { return kv("readonly", function (s) { return s.get(k); }).catch(function () { return null; }); };
+  var kvSet = function (k, v) { return kv("readwrite", function (s) { return s.put(v, k); }).catch(function () {}); };
+  var kvDel = function (k) { return kv("readwrite", function (s) { return s.delete(k); }).catch(function () {}); };
+
+  // ===================== crypto (PBKDF2-SHA256 -> AES-GCM-256) =====================
+  var te = new TextEncoder(), td = new TextDecoder();
+  function b64(buf) {
+    var bytes = new Uint8Array(buf), s = "";
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s);
+  }
+  function unb64(str) {
+    var s = atob(str), out = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+    return out;
+  }
+  function deriveKey(passphrase, salt, iterations) {
+    return crypto.subtle.importKey("raw", te.encode(passphrase), "PBKDF2", false, ["deriveKey"])
+      .then(function (base) {
+        return crypto.subtle.deriveKey({ name: "PBKDF2", salt: salt, iterations: iterations, hash: "SHA-256" },
+          base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+      });
+  }
+  function seal(key, salt, iterations, payload) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    return crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, te.encode(JSON.stringify(payload)))
+      .then(function (ct) {
+        return { v: 1, kdf: "PBKDF2-SHA256", iter: iterations, salt: b64(salt), iv: b64(iv), ct: b64(ct) };
+      });
+  }
+  function unseal(key, blob) {
+    return crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(blob.iv) }, key, unb64(blob.ct))
+      .then(function (pt) { return JSON.parse(td.decode(pt)); });
+  }
+
+  // ===================== GitHub Gist storage =====================
+  var sync = { mode: "loading", gistId: null, key: null, token: null, pending: [], timer: null, saving: false, note: "" };
+
+  function owner() {
+    if (state.data && state.data.owner) return state.data.owner;
+    return /\.github\.io$/i.test(location.hostname) ? location.hostname.split(".")[0] : "";
+  }
+  function gh(path, method, body, token) {
+    var headers = { "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
+    if (token) headers["Authorization"] = "Bearer " + token;
+    if (body) headers["Content-Type"] = "application/json";
+    return fetch("https://api.github.com" + path, {
+      method: method || "GET", headers: headers, cache: "no-store",
+      body: body ? JSON.stringify(body) : undefined
+    });
+  }
+  function findGist() {
+    var pinned = state.data && state.data.sync_gist_id;
+    if (pinned) return Promise.resolve(pinned);
+    var cached = lsGet(GIST_KEY);
+    if (cached) return Promise.resolve(cached);
+    var who = owner();
+    if (!who) return Promise.resolve(null);
+    return gh("/users/" + encodeURIComponent(who) + "/gists?per_page=100")
+      .then(function (r) { if (!r.ok) throw new Error("lookup"); return r.json(); })
+      .then(function (gists) {
+        var match = gists.filter(function (g) { return g.files && g.files[SYNC_FILE]; })[0];
+        if (match) lsSet(GIST_KEY, match.id);
+        return match ? match.id : null;
+      });
+  }
+  function readBlob() {
+    return gh("/gists/" + sync.gistId, "GET", null, sync.token).then(function (r) {
+      if (r.status === 404) { lsSet(GIST_KEY, ""); throw new Error("gist-missing"); }
+      if (!r.ok) throw new Error("http-" + r.status);
+      return r.json();
+    }).then(function (g) {
+      var file = g.files && g.files[SYNC_FILE];
+      if (!file || !file.content) throw new Error("gist-empty");
+      return JSON.parse(file.content);
+    });
+  }
+  function payloadToSet(payload) { return new Set(Object.keys(payload.applied || {})); }
+
+  // ===================== sync flows =====================
+  function initSync() {
+    if (!window.crypto || !crypto.subtle || !window.indexedDB) { sync.mode = "unsupported"; return renderSync(); }
+    kvGet("sync").then(function (saved) {
+      return findGist().then(function (gistId) {
+        sync.gistId = gistId;
+        if (!gistId) { sync.mode = "off"; return; }
+        if (saved && saved.gistId === gistId && saved.key) {
+          sync.key = saved.key;
+          return pull().catch(function (e) {
+            if (e && e.message === "decrypt") { kvDel("sync"); sync.key = null; sync.mode = "locked"; }
+            else { sync.mode = "error"; sync.note = "Could not reach GitHub to sync marks. Refresh to retry."; }
+          });
+        }
+        sync.mode = "locked";
+      });
+    }).then(renderSync, function () {
+      sync.mode = "error"; sync.note = "Could not reach GitHub to check for sync. Refresh to retry."; renderSync();
+    });
+  }
+
+  function pull() {
+    return readBlob().then(function (blob) {
+      return unseal(sync.key, blob).catch(function () { throw new Error("decrypt"); });
+    }).then(function (payload) {
+      sync.token = payload.token;
+      sync.mode = "on";
+      state.applied = payloadToSet(payload);
+      saveApplied();
+      render();
+      return payload;
+    });
+  }
+
+  function setup() {
+    var token = el.setupToken.value.trim(), pass = el.setupPass.value, pass2 = el.setupPass2.value;
+    if (!/^(github_pat_|ghp_)[A-Za-z0-9_]+$/.test(token)) return panelError(el.setupError, "That doesn't look like a GitHub token (it should start with github_pat_).");
+    if (pass.length < MIN_PASSPHRASE) return panelError(el.setupError, "Use a passphrase of at least " + MIN_PASSPHRASE + " characters (four or more random words).");
+    if (pass !== pass2) return panelError(el.setupError, "The two passphrases don't match.");
+    el.setupError.hidden = true;
+    busy(el.setupGo, true, "Encrypting…");
+    var salt = crypto.getRandomValues(new Uint8Array(16)), applied = {}, key;
+    state.applied.forEach(function (url) { applied[url] = Date.now(); });
+    deriveKey(pass, salt, KDF_ITERATIONS).then(function (k) {
+      key = k;
+      return seal(key, salt, KDF_ITERATIONS, { token: token, applied: applied, updated_at: new Date().toISOString() });
+    }).then(function (blob) {
+      busy(el.setupGo, true, "Creating Gist…");
+      var files = {}; files[SYNC_FILE] = { content: JSON.stringify(blob) };
+      return gh("/gists", "POST", {
+        description: "Job Watcher: encrypted applied marks (managed by the dashboard, do not edit)",
+        public: true, files: files
+      }, token);
+    }).then(function (r) {
+      if (r.status === 401) throw new Error("GitHub rejected the token. Check that you copied all of it.");
+      if (r.status === 403 || r.status === 404) throw new Error("This token can't create Gists. It needs Account permissions → Gists → Read and write.");
+      if (!r.ok) throw new Error("GitHub returned " + r.status + ". Try again.");
+      return r.json();
+    }).then(function (g) {
+      sync.gistId = g.id; sync.key = key; sync.token = token; sync.mode = "on";
+      lsSet(GIST_KEY, g.id);
+      if (el.setupRemember.checked) kvSet("sync", { gistId: g.id, key: key });
+      sync.note = "Sync is on. Enter the same passphrase on your other devices.";
+      el.setupToken.value = "";
+      closePanels(); renderSync();
+    }).catch(function (e) {
+      panelError(el.setupError, (e && e.message) || "Something went wrong.");
+    }).then(function () { busy(el.setupGo, false, "Turn on sync"); el.setupPass.value = el.setupPass2.value = ""; });
+  }
+
+  function unlock() {
+    var pass = el.unlockPass.value;
+    if (!pass) return panelError(el.unlockError, "Enter your passphrase.");
+    el.unlockError.hidden = true;
+    busy(el.unlockGo, true, "Unlocking…");
+    var local = new Set(state.applied);
+    readBlob().then(function (blob) {
+      return deriveKey(pass, unb64(blob.salt), blob.iter);
+    }).then(function (key) {
+      sync.key = key;
+      return pull().catch(function (e) {
+        sync.key = null;
+        throw new Error(e && e.message === "decrypt" ? "Wrong passphrase." : "Could not reach GitHub. Try again.");
+      });
+    }).then(function () {
+      if (el.unlockRemember.checked) kvSet("sync", { gistId: sync.gistId, key: sync.key });
+      // Bring over marks made on this device before it was unlocked.
+      local.forEach(function (url) { if (!state.applied.has(url)) { state.applied.add(url); queue(url, true); } });
+      render();
+      closePanels(); renderSync();
+    }).catch(function (e) {
+      panelError(el.unlockError, (e && e.message) || "Could not unlock.");
+    }).then(function () { busy(el.unlockGo, false, "Unlock"); el.unlockPass.value = ""; });
+  }
+
+  function renew() {
+    var token = el.renewToken.value.trim();
+    if (!/^(github_pat_|ghp_)[A-Za-z0-9_]+$/.test(token)) return panelError(el.renewError, "That doesn't look like a GitHub token.");
+    sync.token = token;
+    sync.mode = "on";
+    el.renewToken.value = "";
+    closePanels();
+    renderSync();
+    push();
+  }
+
+  function forget() {
+    kvDel("sync");
+    sync.key = null; sync.token = null; sync.mode = sync.gistId ? "locked" : "off";
+    sync.note = "Passphrase forgotten on this device.";
+    renderSync();
+  }
+
+  // Each change is queued, then applied to the LATEST copy in the Gist, so changes
+  // made on different devices are merged rather than overwritten.
+  function queue(url, on) {
+    sync.pending.push({ url: url, on: on });
+    clearTimeout(sync.timer);
+    sync.timer = setTimeout(push, 800);
+    renderSync();
+  }
+
+  function push() {
+    if (sync.mode !== "on" || sync.saving || !sync.pending.length) return;
+    sync.saving = true; renderSync();
+    var ops = sync.pending.splice(0);
+    var payload, salt, iter;
+    readBlob().then(function (blob) {
+      salt = unb64(blob.salt); iter = blob.iter;
+      return unseal(sync.key, blob);
+    }).then(function (p) {
+      payload = p;
+      payload.applied = payload.applied || {};
+      ops.forEach(function (op) { if (op.on) payload.applied[op.url] = Date.now(); else delete payload.applied[op.url]; });
+      payload.token = sync.token;
+      payload.updated_at = new Date().toISOString();
+      return seal(sync.key, salt, iter, payload);
+    }).then(function (newBlob) {
+      var files = {}; files[SYNC_FILE] = { content: JSON.stringify(newBlob) };
+      return gh("/gists/" + sync.gistId, "PATCH", { files: files }, sync.token);
+    }).then(function (r) {
+      if (r.status === 401 || r.status === 403) throw new Error("token");
+      if (!r.ok) throw new Error("http-" + r.status);
+      state.applied = payloadToSet(payload);
+      saveApplied();
+      sync.note = "";
+      render();
+    }).catch(function (e) {
+      sync.pending = ops.concat(sync.pending);  // keep them for the next attempt
+      if (e && e.message === "token") { sync.mode = "renew"; }
+      else { sync.note = "Couldn't save to GitHub; will retry."; setTimeout(push, 30000); }
+    }).then(function () {
+      sync.saving = false;
+      renderSync();
+      if (sync.pending.length && sync.mode === "on" && !sync.note) push();
+    });
+  }
+
+  // ===================== sync UI =====================
+  function panelError(target, message) { target.hidden = false; target.textContent = message; }
+  function busy(button, on, label) { button.disabled = on; button.textContent = label; }
+  function closePanels() {
+    [el.setupPanel, el.unlockPanel, el.renewPanel].forEach(function (p) { p.hidden = true; });
+    [el.setupError, el.unlockError, el.renewError].forEach(function (e) { e.hidden = true; });
+  }
+  function openPanel(panel, focus) { closePanels(); panel.hidden = false; if (focus) focus.focus(); }
+  function action(label, fn) {
+    var b = node("button", "linkbtn", label); b.type = "button"; b.addEventListener("click", fn); return b;
+  }
+
+  function renderSync() {
+    var line = el.syncLine;
+    line.textContent = "";
+    var add = function (n) { line.appendChild(typeof n === "string" ? document.createTextNode(n) : n); };
+    switch (sync.mode) {
+      case "loading": return;
+      case "unsupported": add("Applied marks are saved in this browser only."); return;
+      case "error": add(node("span", "err", sync.note || "Sync unavailable.")); return;
+      case "off":
+        add("Applied marks: this device only · ");
+        add(action("Sync across devices", function () { openPanel(el.setupPanel, el.setupToken); }));
+        break;
+      case "locked":
+        add("Applied marks: this device only · ");
+        add(action("Enter sync passphrase", function () { openPanel(el.unlockPanel, el.unlockPass); }));
+        break;
+      case "renew":
+        add(node("span", "err", "Sync token stopped working · "));
+        add(action("Add new token", function () { openPanel(el.renewPanel, el.renewToken); }));
+        break;
+      case "on":
+        add(sync.saving || sync.pending.length ? "Saving marks…" : node("span", "ok", "Applied marks synced"));
+        add(" · ");
+        add(action("Forget on this device", forget));
+        break;
+    }
+    if (sync.note) { add(" · "); add(sync.note); }
+  }
+
+  // ===================== job list =====================
   function node(tag, className, text) {
     var n = document.createElement(tag);
     if (className) n.className = className;
@@ -177,8 +583,7 @@
       el.meta.appendChild(node("span", "warn", failing.length + " not responding"));
     }
     el.footer.textContent = "Showing matching jobs first seen in the last " + d.dashboard_days +
-      " days. " + (d.schedule ? "Scans run " + d.schedule + "; refresh to see the latest. " : "") +
-      "Applied marks are stored in this browser only.";
+      " days. " + (d.schedule ? "Scans run " + d.schedule + "; refresh to see the latest." : "");
   }
 
   function renderCompanyOptions() {
@@ -219,6 +624,7 @@
     box.addEventListener("change", function () {
       if (box.checked) state.applied.add(job.url); else state.applied.delete(job.url);
       saveApplied();
+      if (sync.mode === "on" || sync.mode === "renew") queue(job.url, box.checked);
       if (el.hideApplied.checked) render(); else li.classList.toggle("applied", box.checked);
     });
 
@@ -270,12 +676,24 @@
     });
   }
 
+  // ===================== wiring =====================
   el.q.addEventListener("input", render);
   [el.company, el.newOnly, el.hideApplied].forEach(function (input) { input.addEventListener("change", render); });
   document.addEventListener("keydown", function (e) {
     var typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
     if (e.key === "/" && !typing) { e.preventDefault(); el.q.focus(); }
     if (e.key === "Escape" && document.activeElement === el.q) { el.q.value = ""; render(); }
+  });
+  el.setupGo.addEventListener("click", setup);
+  el.unlockGo.addEventListener("click", unlock);
+  el.unlockPass.addEventListener("keydown", function (e) { if (e.key === "Enter") unlock(); });
+  el.renewGo.addEventListener("click", renew);
+  Array.prototype.forEach.call(document.querySelectorAll("[data-close]"), function (b) { b.addEventListener("click", closePanels); });
+  // Pick up marks made on other devices when you come back to this tab.
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && sync.mode === "on" && !sync.saving && !sync.pending.length) {
+      pull().catch(function () {});
+    }
   });
 
   setInterval(renderMeta, 60000);
@@ -287,6 +705,7 @@
       renderMeta();
       renderCompanyOptions();
       render();
+      initSync();
     })
     .catch(function () {
       el.meta.textContent = "";

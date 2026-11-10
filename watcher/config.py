@@ -53,6 +53,7 @@ class Config:
     filters: dict
     companies: list[CompanyConfig]
     search_keywords: list[str] = field(default_factory=list)
+    sync_gist_id: str = ""  # optional: pin the dashboard's marks-sync Gist
 
     def filters_for(self, company: CompanyConfig) -> dict:
         return {**self.filters, **company.filters}
@@ -124,6 +125,14 @@ def load_config(config_dir: str | Path) -> Config:
     if not (isinstance(search_keywords, list) and all(isinstance(k, str) and k.strip() for k in search_keywords)):
         raise ConfigError("settings.toml [search]: 'keywords' must be a list of non-empty strings")
 
+    raw_dashboard = settings_doc.get("dashboard", {})
+    unknown = set(raw_dashboard) - {"sync_gist_id"}
+    if unknown:
+        raise ConfigError(f"settings.toml [dashboard]: unknown key(s) {sorted(unknown)}")
+    sync_gist_id = raw_dashboard.get("sync_gist_id", "")
+    if not isinstance(sync_gist_id, str) or not all(ch.isalnum() for ch in sync_gist_id):
+        raise ConfigError("settings.toml [dashboard]: 'sync_gist_id' must be a Gist id (letters and digits)")
+
     companies: list[CompanyConfig] = []
     seen_names: set[str] = set()
     for index, raw in enumerate(companies_doc.get("company", []), start=1):
@@ -170,4 +179,4 @@ def load_config(config_dir: str | Path) -> Config:
         companies.append(CompanyConfig(name, platform, enabled, params, company_filters))
 
     return Config(settings=settings, filters=filters, companies=companies,
-                  search_keywords=search_keywords)
+                  search_keywords=search_keywords, sync_gist_id=sync_gist_id)

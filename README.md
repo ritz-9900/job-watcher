@@ -103,8 +103,32 @@ every run from `data.json`:
 - matching jobs grouped by company, newest first, with location and posted/seen date
 - search by title or location (press `/`), filter by company, "New (24h)" toggle
 - tick a job as **applied** to strike it through, and optionally hide applied jobs.
-  Ticks are stored in your browser only (localStorage), not in the repo.
+  Ticks sync across your devices once sync is set up (below); otherwise they stay in that browser.
 - a warning next to any company whose source is failing
+
+### Syncing applied marks across devices
+
+Set up once, on any device: **Applied marks: this device only · Sync across devices**.
+
+1. Create a fine-grained GitHub token (as the dashboard owner): Repository access
+   *Public repositories*; Account permissions **Gists → Read and write**; nothing else; pick an expiry.
+2. Paste it, choose a passphrase of **16+ characters** (four or more random words), and turn on sync.
+
+On every other device: **Enter sync passphrase**, once ("Remember on this device" keeps it).
+
+How it works and what to know:
+- The page encrypts your marks **and the token** with a key derived from the passphrase
+  (PBKDF2-SHA256, 600,000 rounds → AES-256-GCM) and saves the result as a public Gist
+  (`job-watcher-sync.json`) on your account, where other devices find it. Everything is
+  done in the browser; the passphrase never leaves it and is never stored.
+- The encrypted Gist can be downloaded by anyone, so **passphrase strength is the protection**.
+  A long random passphrase makes guessing it impractical. A short one does not.
+- "Remember on this device" stores a non-extractable key in that browser (IndexedDB). Use
+  **Forget on this device** on shared or work machines when you are done. Pages under
+  `<you>.github.io` share browser storage, so only publish pages you trust there.
+- If the token expires, the page says "Sync token stopped working": paste a new token,
+  same passphrase. Forgotten passphrase: delete the Gist on GitHub and set up again (marks are lost).
+- The token can only read and write your Gists. It cannot touch repositories or settings.
 
 Every scheduled scan republishes the page, so just refresh it. "Updated X min ago" shows
 when the last scan finished. To scan outside the schedule, run **Job watcher** from the

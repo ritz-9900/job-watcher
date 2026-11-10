@@ -8,6 +8,7 @@ changes what the dashboard shows.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -84,6 +85,9 @@ def build_data(config: Config, store: Store, now: datetime | None = None) -> dic
     return {
         "generated_at": now.isoformat(timespec="seconds"),
         "schedule": SCHEDULE_NOTE,
+        # For syncing Applied marks across devices (dashboard looks up the owner's Gist).
+        "owner": os.environ.get("GITHUB_REPOSITORY_OWNER", ""),
+        "sync_gist_id": config.sync_gist_id,
         "utc_offset_minutes": settings["utc_offset_minutes"],
         "dashboard_days": settings["dashboard_days"],
         "companies": companies,
