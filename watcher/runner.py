@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from .adapters import make_adapter
 from .config import Config
-from .filters import JobFilter
+from .filters import JobFilter, parse_experience
 from .models import Job
 from .notifiers import Notifier
 from .store import Store
@@ -31,6 +31,14 @@ class RunReport:
     @property
     def all_failed(self) -> bool:
         return self.checked > 0 and len(self.failed) == self.checked
+
+
+def _remember(store: Store, job: Job, now: datetime, experience, **flags) -> None:
+    """Store a job, including its parsed experience if it was checked."""
+    if experience and experience[0]:
+        store.remember(job, now, experience=experience[1], **flags)
+    else:
+        store.remember(job, now, **flags)
 
 
 def _fingerprint(params: dict) -> str:
@@ -85,7 +93,8 @@ def run_once(
         baseline = not store.is_seeded(company.name) or store.fingerprint(company.name) != fingerprint
         detail_budget = int(settings["max_detail_fetches_per_company"])
 
-        def check_experience(job) -> bool | None:
+        def check_experience(job) -> tuple[bool, tuple | None]:
+            """Return (checked, parsed years). checked=False if no description was available."""
             nonlocal detail_budget
             if not job.description and detail_budget > 0:
                 detail_budget -= 1
@@ -94,8 +103,8 @@ def run_once(
                 except Exception as exc:
                     log.info("%s: could not fetch details for %s: %s", company.name, job.id, exc)
             if not job.description:
-                return None  # unknown: try again on a later run
-            return job_filter.experience_match(job)[0]
+                return False, None  # unknown: try again on a later run
+            return True, parse_experience(job.description)
 
         for job in jobs:
             key = (job.company, job.id)
@@ -105,18 +114,18 @@ def run_once(
                 store.remember(job, now)  # refresh last_seen and listing details
                 record = store.record_of(job)
                 # Backfill experience checks that could not run earlier (detail budget).
-                if (job_filter.uses_experience and record.get("experience_ok") is None
+                if (job_filter.uses_experience and not record.get("experience_checked")
                         and detail_budget > 0 and job_filter.basic_match(job, today)[0]):
-                    result = check_experience(job)
-                    if result is not None:
-                        store.set_experience_ok(job, result)
+                    checked, parsed = check_experience(job)
+                    if checked:
+                        store.set_experience(job, parsed)
                 continue
             ok, reason = job_filter.basic_match(job, today)
-            experience_ok = None
+            experience = None  # (checked, parsed)
             if ok and job_filter.uses_experience:
-                experience_ok = check_experience(job)
-                if experience_ok is False:
-                    ok, reason = False, "experience outside range"
+                experience = check_experience(job)
+                if experience[0]:
+                    ok, reason = job_filter.years_match(experience[1])
             # A job can be new to the watcher but not recently posted (e.g. after the age
             # window was widened). Those go to the dashboard without an alert.
             stale = (job.posted is not None
@@ -124,10 +133,10 @@ def run_once(
             if ok and not baseline and not stale:
                 matched_keys.add(key)
                 report.matched.append(job)
-                job.extra["experience_ok"] = experience_ok
+                job.extra["experience"] = experience
                 log.info("%s: NEW MATCH %s", company.name, job.title)
             else:
-                store.remember(job, now, baseline=baseline, experience_ok=experience_ok)
+                _remember(store, job, now, experience, baseline=baseline)
                 if not ok:
                     log.debug("%s: skipped '%s' (%s)", company.name, job.title, reason)
         if baseline:
@@ -142,8 +151,7 @@ def run_once(
         report.delivered = any(results)
         if report.delivered:
             for job in report.matched:
-                store.remember(job, now, notified=True,
-                               experience_ok=job.extra.get("experience_ok"))
+                _remember(store, job, now, job.extra.get("experience"), notified=True)
         else:
             # Leave them unknown so the next run retries the alert.
             log.error("No notifier delivered the alerts; they will be retried next run")

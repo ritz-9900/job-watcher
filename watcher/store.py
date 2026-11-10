@@ -15,6 +15,7 @@ from .models import Job
 
 log = logging.getLogger(__name__)
 SCHEMA_VERSION = 1
+_UNCHECKED = object()  # sentinel: experience not checked yet
 
 
 def _iso(ts: datetime) -> str:
@@ -81,10 +82,18 @@ class Store:
     def record_of(self, job: Job) -> dict | None:
         return self._company(job.company)["jobs"].get(job.id)
 
-    def set_experience_ok(self, job: Job, value: bool) -> None:
+    def set_experience(self, job: Job, parsed) -> None:
         record = self.record_of(job)
         if record is not None:
-            record["experience_ok"] = value
+            self._set_experience(record, parsed)
+
+    @staticmethod
+    def _set_experience(record: dict, parsed) -> None:
+        # Store the parsed years (not a pass/fail flag) so changing min/max_experience
+        # later re-evaluates jobs that were already checked.
+        record["experience_checked"] = True
+        record["experience_years"] = list(parsed) if parsed is not None else None
+        record.pop("experience_ok", None)  # field used by earlier versions
 
     def remember(
         self,
@@ -93,10 +102,11 @@ class Store:
         *,
         notified: bool = False,
         baseline: bool = False,
-        experience_ok: bool | None = None,
+        experience=_UNCHECKED,
     ) -> None:
-        """Record a job. `baseline` marks jobs saved on a company's first (silent) run;
-        `experience_ok` is None when experience was not checked."""
+        """Record a job. `baseline` marks jobs saved on a company's first (silent) run.
+        `experience` is the parsed (min, max) requirement, or None when the description
+        states none; leave it out when the description has not been checked."""
         jobs = self._company(job.company)["jobs"]
         record = jobs.get(job.id)
         if record is None:
@@ -104,10 +114,13 @@ class Store:
                 "first_seen": _iso(now),
                 "notified": notified,
                 "baseline": baseline,
-                "experience_ok": experience_ok,
+                "experience_checked": False,
+                "experience_years": None,
             }
         elif notified:
             record["notified"] = True
+        if experience is not _UNCHECKED:
+            self._set_experience(record, experience)
         # Listing details can change (title edits, extra locations); keep the latest.
         record["title"] = job.title
         record["url"] = job.url

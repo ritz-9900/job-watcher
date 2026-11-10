@@ -147,9 +147,12 @@ class JobFilter:
         return True, "ok"
 
     def experience_match(self, job: Job) -> tuple[bool, str]:
+        return self.years_match(parse_experience(job.description))
+
+    def years_match(self, parsed: tuple[int, int | None] | list | None) -> tuple[bool, str]:
+        """Check a parsed (min_years, max_years) requirement against the filter."""
         if not self.uses_experience:
             return True, "ok"
-        parsed = parse_experience(job.description)
         if parsed is None:
             return True, "experience not stated (kept)"
         lo, hi = parsed

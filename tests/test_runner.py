@@ -167,12 +167,13 @@ class RunnerTests(unittest.TestCase):
         self.config.filters.update({"min_experience": 2, "max_experience": 3})
         self.config.settings["max_detail_fetches_per_company"] = 0
         self.run_watcher(RecordingNotifier())  # baseline, no budget: experience unknown
-        store = Store(self.state_path)
-        self.assertIsNone(store.data["companies"]["Acme"]["jobs"]["1"]["experience_ok"])
+        record = Store(self.state_path).data["companies"]["Acme"]["jobs"]["1"]
+        self.assertFalse(record["experience_checked"])
         self.config.settings["max_detail_fetches_per_company"] = 5
         self.run_watcher(RecordingNotifier())  # fake details say 8+ years
-        store = Store(self.state_path)
-        self.assertIs(store.data["companies"]["Acme"]["jobs"]["1"]["experience_ok"], False)
+        record = Store(self.state_path).data["companies"]["Acme"]["jobs"]["1"]
+        self.assertTrue(record["experience_checked"])
+        self.assertEqual(record["experience_years"], [8, None])
 
     def test_prune(self):
         self.run_watcher(RecordingNotifier())

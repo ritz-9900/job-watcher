@@ -55,9 +55,10 @@ title_exclude_except = ["Assistant Manager", "Senior Analyst", "Sr Analyst", "Sr
                         "Senior Associate", "Sr Associate", "Sr. Associate"]
 locations = ["Mumbai", "Pune", "Hyderabad", "Bengaluru", "Bangalore", "Gurugram", "Gurgaon"]
 locations_exclude = []
-# Jobs asking for more than 3 years minimum ("4+ years", "5-8 years") are dropped;
-# jobs whose range reaches 2-3 years ("1-3", "3-5") are kept, as are jobs that state
-# no experience. Raise max_experience to 4 to also see stretch roles.
+# Jobs asking for more than 4 years minimum ("5+ years", "6-8 years") are dropped;
+# jobs asking for up to 4 years ("2-4", "4+") are kept, as are jobs that state no
+# experience. Jobs aimed below 2 years ("0-1 years") are dropped.
+# Changing these re-evaluates jobs already seen (the parsed years are stored).
 min_experience = 2
-max_experience = 3
+max_experience = 4
 max_age_days = 30

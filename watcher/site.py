@@ -53,7 +53,9 @@ def build_data(config: Config, store: Store, now: datetime | None = None) -> dic
         count = 0
         for job_id, rec in store.jobs_of(company.name).items():
             first_seen = _parse_dt(rec.get("first_seen"))
-            if rec.get("experience_ok") is False or not first_seen or first_seen < window_start:
+            if not first_seen or first_seen < window_start:
+                continue
+            if rec.get("experience_checked") and not job_filter.years_match(rec.get("experience_years"))[0]:
                 continue
             job = Job(company=company.name, id=job_id, title=rec.get("title", ""),
                       url=rec.get("url", ""), location=rec.get("location", ""),

@@ -22,7 +22,8 @@ class SiteTests(unittest.TestCase):
         self.store = Store(Path(self.tmp.name) / "state.json")
         self.config = Config(
             settings=dict(SETTING_DEFAULTS),
-            filters={**FILTER_DEFAULTS, "title_include": ["AI"], "locations": ["India"]},
+            filters={**FILTER_DEFAULTS, "title_include": ["AI"], "locations": ["India"],
+                     "min_experience": 2, "max_experience": 3},
             companies=[CompanyConfig("Acme", "fake"), CompanyConfig("Later", "fake")],
         )
 
@@ -35,7 +36,7 @@ class SiteTests(unittest.TestCase):
         s.remember(job("new"), NOW - timedelta(hours=1), notified=True)
         s.remember(job("old"), NOW - timedelta(days=40))                      # outside window
         s.remember(job("london", location="London, UK"), NOW)                  # filtered out
-        s.remember(job("senior"), NOW, experience_ok=False)                    # failed experience
+        s.remember(job("senior"), NOW, experience=(8, None))                   # needs 8+ years
         s.remember(job("accountant", title="Accountant"), NOW)                 # filtered out
         s.mark_seeded("Acme")
         s.record_success("Acme", 5, 3, NOW)
@@ -52,6 +53,14 @@ class SiteTests(unittest.TestCase):
         self.store.remember(job("1"), NOW)
         self.config.filters["title_include"] = ["Python"]
         self.assertEqual(build_data(self.config, self.store, NOW)["jobs"], [])
+
+    def test_experience_change_reevaluates_known_jobs(self):
+        self.store.remember(job("four"), NOW, experience=(4, None))
+        self.store.remember(job("unstated"), NOW, experience=None)
+        ids = lambda: {j["url"].rsplit("/", 1)[1] for j in build_data(self.config, self.store, NOW)["jobs"]}
+        self.assertEqual(ids(), {"unstated"})          # max 3: "4+ years" hidden
+        self.config.filters["max_experience"] = 4
+        self.assertEqual(ids(), {"four", "unstated"})  # max 4: shown, no re-fetch needed
 
     def test_failing_source_status(self):
         self.store.remember(job("1"), NOW)
