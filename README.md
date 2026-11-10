@@ -68,6 +68,9 @@ Repo → Settings → Secrets and variables → Actions → **New repository sec
 Optional repository **variables** (not secrets): `SMTP_HOST` (default `smtp.gmail.com`),
 `SMTP_PORT` (default `465`; `587` uses STARTTLS).
 
+Without these secrets the watcher still runs in **dashboard-only mode**: it tracks jobs and
+updates the dashboard, and prints new matches in the Actions log instead of sending them.
+
 ### 4. Dashboard (GitHub Pages)
 Repo → Settings → Pages → **Source: GitHub Actions**. After the next watcher run, the
 dashboard is at `https://<your-username>.github.io/<repo>/`.

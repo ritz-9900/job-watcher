@@ -20,7 +20,7 @@ from .adapters import make_adapter
 from .config import ConfigError, load_config
 from .detect import detect, to_toml
 from .http import HttpClient
-from .notifiers import build_notifiers
+from .notifiers import ConsoleNotifier, build_notifiers
 from .runner import run_once
 from .store import Store
 
@@ -58,9 +58,12 @@ def cmd_run(args, config) -> int:
     http = _http(config)
     notifiers = build_notifiers(os.environ, config.settings, http, dry_run=args.dry_run)
     if not notifiers:
-        print("No alert channel configured. Set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID and/or "
-              "SMTP_USER + SMTP_PASSWORD + EMAIL_TO, or use --dry-run.", file=sys.stderr)
-        return 2
+        # Dashboard-only mode: keep tracking jobs (state + dashboard) and print matches
+        # to the log, so the dashboard works before alert secrets are configured.
+        log.warning("No alert channel configured (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID and/or "
+                    "SMTP_USER + SMTP_PASSWORD + EMAIL_TO). Running in dashboard-only mode: "
+                    "new matches are printed to this log, not sent.")
+        notifiers = [ConsoleNotifier()]
     log.info("Alert channels: %s", ", ".join(n.name for n in notifiers))
     store = Store(args.state)
     report = run_once(config, store, http, notifiers, only=args.only)
