@@ -13,6 +13,7 @@
 
 [[company]]
 name = "JPMorgan Chase"
+website = "jpmorganchase.com"
 platform = "oracle"
 enabled = true
 notes = "Verified live 2026-11-10: anonymous API works, ~7,000 jobs, newest first."
@@ -24,6 +25,7 @@ site_number = "CX_1001"
 
 [[company]]
 name = "American Express"
+website = "americanexpress.com"
 platform = "oracle"
 enabled = true
 notes = """Verified live 2026-11-10. Amex moved from Eightfold to Oracle Recruiting Cloud;
@@ -35,6 +37,7 @@ site_number = "CX_1"
 
 [[company]]
 name = "Google"
+website = "google.com"
 platform = "html_links"
 enabled = true
 notes = """Parses Google's job-results HTML (most fragile entry). google.com/robots.txt
@@ -48,6 +51,7 @@ max_pages = 1
 
 [[company]]
 name = "S&P Global"
+website = "spglobal.com"
 platform = "workday"
 enabled = true
 notes = """Verified live 2026-11-11. careers.spglobal.com links to Workday (SPGI_Careers);
@@ -63,6 +67,7 @@ applied_facets = { Location_Country = ["c4f78be1a8f14da0ab49ce1162348a5e"] }  # 
 
 [[company]]
 name = "EXL"
+website = "exlservice.com"
 platform = "oracle"
 enabled = true
 notes = "Verified live 2026-11-10: ~2,400 jobs, newest first. No robots.txt on the host."
@@ -72,6 +77,7 @@ site_number = "CX_2"
 
 [[company]]
 name = "Optum"
+website = "optum.com"
 platform = "html_links"
 enabled = true
 notes = """Verified live 2026-11-10. careers.unitedhealthgroup.com is a Radancy/TalentBrew site.
@@ -90,6 +96,7 @@ max_pages = 1
 
 [[company]]
 name = "Nomura"
+website = "nomura.com"
 platform = "html_links"
 enabled = true
 notes = """Verified live 2026-11-10. careers.nomura.com is SAP SuccessFactors. robots.txt

@@ -22,7 +22,7 @@ class WorkdayTests(unittest.TestCase):
         self.assertEqual(parse_posted_on("Posted Today", today), today)
         self.assertEqual(parse_posted_on("Posted Yesterday", today), today - timedelta(days=1))
         self.assertEqual(parse_posted_on("Posted 3 Days Ago", today), today - timedelta(days=3))
-        self.assertEqual(parse_posted_on("Posted 30+ Days Ago", today), today - timedelta(days=30))
+        self.assertEqual(parse_posted_on("Posted 30+ Days Ago", today), today - timedelta(days=31))
         self.assertIsNone(parse_posted_on("", today))
 
     def test_paging_and_mapping(self):

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.github.com; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+      content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.github.com; img-src 'self' data: https://www.google.com https://*.gstatic.com; base-uri 'none'; form-action 'none'">
 <title>Job Watcher</title>
 <style>
   :root {
@@ -102,10 +102,31 @@
   .toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; cursor: pointer; }
   .count { margin-left: auto; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 
-  section { margin-top: 28px; }
-  section h2 { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 600; margin: 0 0 6px; }
-  section h2 .n { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
-  section h2 .status-note { color: var(--warn); font-weight: 400; font-size: 12px; }
+  details.company { margin-top: 22px; }
+  details.company > summary {
+    display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 6px;
+    font-size: 13px; font-weight: 600; cursor: pointer; list-style: none; user-select: none;
+  }
+  details.company > summary::-webkit-details-marker { display: none; }
+  details.company > summary:hover { background: var(--hover); }
+  details.company > summary:focus-visible { outline: 2px solid var(--link); outline-offset: -1px; }
+  details.company > summary::before {
+    content: ""; flex: none; width: 6px; height: 6px; margin: 0 3px 0 2px;
+    border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+    transform: rotate(-45deg); transition: transform 0.12s;
+  }
+  details.company[open] > summary::before { transform: rotate(45deg); }
+  details.company:not([open]) { border-bottom: 1px solid var(--line); }
+  summary .n { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+  summary .status-note { color: var(--warn); font-weight: 400; font-size: 12px; }
+  .logo, .mono { flex: none; width: 18px; height: 18px; border-radius: 4px; }
+  .logo { object-fit: contain; background: #fff; }
+  .mono {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--hover); border: 1px solid var(--line); color: var(--muted);
+    font-size: 9px; font-weight: 600; letter-spacing: 0;
+  }
+  details.company .jobs { margin-top: 4px; }
 
   .jobs { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
   .jobs li {
@@ -210,6 +231,7 @@
     <select id="company" aria-label="Company"></select>
     <label class="toggle"><input type="checkbox" id="newOnly"> New (24h)</label>
     <label class="toggle"><input type="checkbox" id="hideApplied"> Hide applied</label>
+    <button type="button" class="linkbtn" id="toggleAll">Collapse all</button>
     <span class="count" id="count"></span>
   </div>
 
@@ -236,9 +258,17 @@
     unlockGo: $("unlockGo"), unlockError: $("unlockError"),
     renewPanel: $("renewPanel"), renewToken: $("renewToken"), renewGo: $("renewGo"), renewError: $("renewError"),
     q: $("q"), company: $("company"), newOnly: $("newOnly"), hideApplied: $("hideApplied"),
-    count: $("count"), list: $("list"), footer: $("footer")
+    count: $("count"), list: $("list"), footer: $("footer"), toggleAll: $("toggleAll")
   };
-  var state = { data: null, applied: loadApplied() };
+  var COLLAPSED_KEY = "jobwatcher.collapsed.v1";  // collapsed company sections (this device)
+  var state = { data: null, applied: loadApplied(), collapsed: loadCollapsed(), shown: [] };
+
+  function loadCollapsed() {
+    try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) || "[]")); } catch (e) { return new Set(); }
+  }
+  function saveCollapsed() {
+    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(Array.from(state.collapsed))); } catch (e) {}
+  }
 
   // ===================== local storage =====================
   function loadApplied() {
@@ -653,9 +683,11 @@
     var visible = state.data.jobs.filter(function (j) { return matches(j, q); });
     el.count.textContent = visible.length + (visible.length === 1 ? " job" : " jobs");
     el.list.textContent = "";
+    state.shown = [];
 
     if (!visible.length) {
       el.list.appendChild(node("p", "empty", state.data.jobs.length ? "No jobs match these filters." : "No matching jobs yet."));
+      updateToggleAll();
       return;
     }
     var byCompany = {};
@@ -663,17 +695,53 @@
     state.data.companies.forEach(function (c) {
       var jobs = byCompany[c.name];
       if (!jobs) return;
-      var section = node("section");
-      var h2 = node("h2", null, c.name);
-      h2.appendChild(node("span", "n", String(jobs.length)));
-      if (c.status === "error") h2.appendChild(node("span", "status-note", "source failing, list may be stale"));
-      if (c.status === "empty") h2.appendChild(node("span", "status-note", "source returned no jobs recently"));
-      section.appendChild(h2);
+      state.shown.push(c.name);
+      var section = node("details", "company");
+      section.open = !state.collapsed.has(c.name);
+      section.addEventListener("toggle", function () {
+        if (section.open) state.collapsed.delete(c.name); else state.collapsed.add(c.name);
+        saveCollapsed();
+        updateToggleAll();
+      });
+      var head = node("summary");
+      head.appendChild(logoNode(c));
+      head.appendChild(node("span", null, c.name));
+      head.appendChild(node("span", "n", String(jobs.length)));
+      if (c.status === "error") head.appendChild(node("span", "status-note", "source failing, list may be stale"));
+      if (c.status === "empty") head.appendChild(node("span", "status-note", "source returned no jobs recently"));
+      section.appendChild(head);
       var ul = node("ul", "jobs");
       jobs.forEach(function (j) { ul.appendChild(jobRow(j)); });
       section.appendChild(ul);
       el.list.appendChild(section);
     });
+    updateToggleAll();
+  }
+
+  // Company logo (site icon), falling back to initials if it is missing or fails to load.
+  function monogram(name) {
+    var words = name.replace(/[^A-Za-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+    var text = words.length > 1 ? words[0][0] + words[1][0] : (words[0] || "?").slice(0, 2);
+    var m = node("span", "mono", text.toUpperCase());
+    m.setAttribute("aria-hidden", "true");
+    return m;
+  }
+  function logoNode(c) {
+    if (!/^https:\/\//.test(c.logo || "")) return monogram(c.name);
+    var img = node("img", "logo");
+    img.alt = ""; img.width = 18; img.height = 18; img.loading = "lazy";
+    img.referrerPolicy = "no-referrer";
+    img.addEventListener("error", function () { img.replaceWith(monogram(c.name)); });
+    img.src = c.logo;
+    return img;
+  }
+
+  function allCollapsed() {
+    return state.shown.length > 0 && state.shown.every(function (n) { return state.collapsed.has(n); });
+  }
+  function updateToggleAll() {
+    el.toggleAll.hidden = state.shown.length < 2;
+    el.toggleAll.textContent = allCollapsed() ? "Expand all" : "Collapse all";
   }
 
   // ===================== wiring =====================
@@ -683,6 +751,12 @@
     var typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
     if (e.key === "/" && !typing) { e.preventDefault(); el.q.focus(); }
     if (e.key === "Escape" && document.activeElement === el.q) { el.q.value = ""; render(); }
+  });
+  el.toggleAll.addEventListener("click", function () {
+    var expand = allCollapsed();
+    state.shown.forEach(function (n) { if (expand) state.collapsed.delete(n); else state.collapsed.add(n); });
+    saveCollapsed();
+    render();
   });
   el.setupGo.addEventListener("click", setup);
   el.unlockGo.addEventListener("click", unlock);

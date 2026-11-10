@@ -105,6 +105,12 @@ every run from `data.json`:
 - tick a job as **applied** to strike it through, and optionally hide applied jobs.
   Ticks sync across your devices once sync is set up (below); otherwise they stay in that browser.
 - a warning next to any company whose source is failing
+- each company section collapses and expands (click its header, or **Collapse all**); the
+  collapsed state is remembered per browser
+- company logos: set `website = "example.com"` on a company in `companies.toml`. The logo is
+  that site's icon, loaded by your browser through Google's favicon service; no logo files
+  are stored in this repository. Without `website` (or if the icon fails), initials are shown.
+  Logos are the companies' trademarks, shown only to identify them.
 
 ### Syncing applied marks across devices
 

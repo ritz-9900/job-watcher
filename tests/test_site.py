@@ -62,6 +62,12 @@ class SiteTests(unittest.TestCase):
         self.config.filters["max_experience"] = 4
         self.assertEqual(ids(), {"four", "unstated"})  # max 4: shown, no re-fetch needed
 
+    def test_logo_url_from_website(self):
+        self.config.companies[0].website = "acme.com"
+        logos = {c["name"]: c["logo"] for c in build_data(self.config, self.store, NOW)["companies"]}
+        self.assertIn("domain=acme.com", logos["Acme"])
+        self.assertEqual(logos["Later"], "")  # no website -> page shows initials
+
     def test_failing_source_status(self):
         self.store.remember(job("1"), NOW)
         self.store.record_failure("Acme", "boom", 3)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,7 +32,8 @@ SETTING_DEFAULTS: dict = {
 
 _LIST_FILTERS = ("title_include", "title_exclude", "title_exclude_except", "locations", "locations_exclude")
 _NUMBER_FILTERS = ("min_experience", "max_experience", "max_age_days")
-_COMPANY_KEYS = {"name", "platform", "enabled", "params", "filters", "notes"}
+_COMPANY_KEYS = {"name", "platform", "enabled", "params", "filters", "notes", "website"}
+_DOMAIN_RE = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)+$")
 
 
 class ConfigError(Exception):
@@ -45,6 +47,7 @@ class CompanyConfig:
     enabled: bool = True
     params: dict = field(default_factory=dict)
     filters: dict = field(default_factory=dict)
+    website: str = ""  # company domain, used only for the dashboard logo
 
 
 @dataclass
@@ -176,7 +179,11 @@ def load_config(config_dir: str | Path) -> Config:
             except ValueError as exc:
                 raise ConfigError(f"{where}: {exc}") from None
 
-        companies.append(CompanyConfig(name, platform, enabled, params, company_filters))
+        website = raw.get("website", "")
+        if not isinstance(website, str) or (website and not _DOMAIN_RE.match(website)):
+            raise ConfigError(f"{where}: 'website' must be a bare domain like 'example.com'")
+
+        companies.append(CompanyConfig(name, platform, enabled, params, company_filters, website))
 
     return Config(settings=settings, filters=filters, companies=companies,
                   search_keywords=search_keywords, sync_gist_id=sync_gist_id)

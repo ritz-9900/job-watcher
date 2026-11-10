@@ -24,9 +24,11 @@ def parse_posted_on(text: str | None, today: date) -> date | None:
         return today
     if "yesterday" in lowered:
         return today - timedelta(days=1)
-    match = re.search(r"(\d+)\+?\s*days?\s+ago", lowered)
+    match = re.search(r"(\d+)(\+?)\s*days?\s+ago", lowered)
     if match:
-        return today - timedelta(days=int(match.group(1)))
+        # "30+ Days Ago" means MORE than 30 days, so count it as 31: otherwise every
+        # old posting would look exactly 30 days old and slip past a 30-day age filter.
+        return today - timedelta(days=int(match.group(1)) + (1 if match.group(2) else 0))
     return None
 
 

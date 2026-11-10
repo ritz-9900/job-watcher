@@ -37,6 +37,15 @@ def _parse_date(value: str | None) -> date | None:
         return None
 
 
+def _logo_url(company) -> str:
+    """Logo = the company's own site icon, loaded by the viewer's browser through Google's
+    favicon service. No logo files are copied into this repository. The page falls back
+    to the company's initials if the icon does not load."""
+    if not company.website:
+        return ""
+    return f"https://www.google.com/s2/favicons?domain={company.website}&sz=64"
+
+
 def build_data(config: Config, store: Store, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     settings = config.settings
@@ -50,6 +59,7 @@ def build_data(config: Config, store: Store, now: datetime | None = None) -> dic
     for company in config.enabled_companies():
         if company.name not in known:
             companies.append({"name": company.name, "count": 0, "status": "pending",
+                              "logo": _logo_url(company),
                               "last_success": None, "last_error": None})
             continue
         job_filter = JobFilter(config.filters_for(company))
@@ -78,6 +88,7 @@ def build_data(config: Config, store: Store, now: datetime | None = None) -> dic
         health = store.health_of(company.name)
         companies.append({"name": company.name, "count": count,
                           "status": store.dashboard_status(company.name),
+                          "logo": _logo_url(company),
                           "last_success": health.get("last_success"),
                           "last_error": health.get("last_error")})
 
