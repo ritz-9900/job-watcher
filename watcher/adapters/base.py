@@ -18,16 +18,31 @@ class Adapter:
 
     platform: str = ""
     required_params: tuple[str, ...] = ()
+    # True if the platform can search by keyword; the global [search] keywords are
+    # then passed in params["keywords"] (unless the company sets its own).
+    supports_keywords: bool = False
 
     def __init__(self, company: "CompanyConfig", http: "HttpClient"):
         self.company = company
         self.params = company.params
         self.http = http
         self.max_pages = int(self.params.get("max_pages", 5))
+        self.keywords: list[str] = list(self.params.get("keywords") or [])
+
+    @property
+    def uses_search(self) -> bool:
+        """True when results come from keyword searches, so 0 jobs can be legitimate."""
+        return bool(self.keywords)
 
     @classmethod
     def validate_params(cls, params: dict) -> None:
         """Raise ValueError for bad params. Called at config load time."""
+
+    @staticmethod
+    def _check_keywords(params: dict) -> None:
+        keywords = params.get("keywords", [])
+        if not (isinstance(keywords, list) and all(isinstance(k, str) for k in keywords)):
+            raise ValueError("'keywords' must be a list of strings")
 
     def fetch_jobs(self, max_age_days: int | None) -> list[Job]:
         raise NotImplementedError

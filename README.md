@@ -29,12 +29,23 @@ alerts on jobs that appear after that. This also applies when you add a company 
 
 | Company | Platform | What is read each run (verified live 2026-11-10) |
 |---|---|---|
-| JPMorgan Chase | Oracle Recruiting Cloud | up to 100 newest jobs worldwide (stops at `max_age_days`) |
-| American Express | Oracle Recruiting Cloud (moved from Eightfold) | up to 100 newest jobs worldwide |
-| EXL | Oracle Recruiting Cloud | up to 100 newest jobs worldwide |
-| Google | `html_links` | first India results page, 20 newest (robots.txt disallows paging); no location shown |
-| Optum | `html_links` (Radancy/TalentBrew) | India location page, 15 newest (robots.txt disallows `/search-jobs/`) |
-| Nomura | `html_links` (SAP SuccessFactors) | `/search/` sorted by date, ~100 newest worldwide (robots.txt disallows the RSS feed) |
+| JPMorgan Chase | Oracle Recruiting Cloud | site search per keyword, 50 newest each (stops at `max_age_days`) |
+| American Express | Oracle Recruiting Cloud (moved from Eightfold) | site search per keyword, 50 newest each |
+| EXL | Oracle Recruiting Cloud | site search per keyword, 50 newest each |
+| Google | `html_links` | India results per keyword, first page (robots.txt disallows paging); no location shown |
+| Optum | `html_links` (Radancy/TalentBrew) | 15 newest per city page: Bengaluru, Hyderabad, Gurgaon, Pune (robots.txt disallows `/search-jobs/`) |
+| Nomura | `html_links` (SAP SuccessFactors) | all listings, 100 per page (its keyword search does not filter; RSS disallowed) |
+
+## Search keywords
+
+`[search] keywords` in `config/settings.toml` are sent to each site's own search where the
+platform supports it and robots.txt allows it, so each run reads relevant jobs rather than
+only the newest listings. Results are still checked against `[filters]`.
+
+When a company's fetch settings change (including the keywords), its next run records the
+current jobs **without alerting**, so a config change doesn't flood you. Alerts are also
+limited to jobs posted within `alert_max_age_days` (default 3). Older jobs that turn up
+are added to the dashboard silently.
 
 The Workday adapter was also verified live (against NVIDIA's public site) on 2026-11-10.
 
@@ -147,13 +158,17 @@ Edit `[filters]` in `config/settings.toml`. A company can override any key with 
 |---|---|
 | `title_include` | title must contain one of these whole words (empty = any) |
 | `title_exclude` | drop titles containing any of these |
+| `title_exclude_except` | phrases that override an exclusion (e.g. keep "Assistant Manager" while excluding "Manager") |
 | `locations` / `locations_exclude` | substring match on location (empty = anywhere) |
 | `min_experience`, `max_experience` | compared with "X years" parsed from the description |
 | `max_age_days` | drop jobs older than this, when the site shows a date |
 
 When information is missing (no location, "3 Locations", no date, experience not stated),
-the job is **kept**: a false alert costs less than a missed job. Experience parsing reads
-the first "N years ... experience" phrase. That's best-effort, so check the job description.
+the job is **kept**: a false alert costs less than a missed job. Experience parsing takes the
+**highest** minimum stated in the required parts of the description (e.g. "12+ years in
+analytics … 3+ years leading teams" → 12) and ignores "preferred" sections. Jobs whose
+description could not be fetched yet are re-checked on later runs. It's best-effort,
+so check the job description.
 
 ## Reliability
 

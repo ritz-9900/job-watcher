@@ -69,8 +69,22 @@ class Store:
     def mark_seeded(self, name: str) -> None:
         self._company(name)["seeded"] = True
 
+    def fingerprint(self, name: str) -> str | None:
+        return self._company(name).get("fingerprint")
+
+    def set_fingerprint(self, name: str, value: str) -> None:
+        self._company(name)["fingerprint"] = value
+
     def is_known(self, job: Job) -> bool:
         return job.id in self._company(job.company)["jobs"]
+
+    def record_of(self, job: Job) -> dict | None:
+        return self._company(job.company)["jobs"].get(job.id)
+
+    def set_experience_ok(self, job: Job, value: bool) -> None:
+        record = self.record_of(job)
+        if record is not None:
+            record["experience_ok"] = value
 
     def remember(
         self,
@@ -133,11 +147,12 @@ class Store:
                     f"'Probe career sites' workflow to check.")
         return None
 
-    def record_success(self, name: str, count: int, threshold: int, now: datetime) -> str | None:
+    def record_success(self, name: str, count: int, threshold: int, now: datetime,
+                       *, empty_is_suspicious: bool = True) -> str | None:
         health = self._company(name)["health"]
         health["consecutive_failures"] = 0
         health["last_error"] = None
-        if count == 0:
+        if count == 0 and empty_is_suspicious:
             health["consecutive_empty"] += 1
             if health["consecutive_empty"] >= threshold and not health["alerted"]:
                 health["alerted"] = True
@@ -150,3 +165,11 @@ class Store:
             health["alerted"] = False
             return f"{name}: working again ({count} jobs fetched)."
         return None
+
+    def dashboard_status(self, name: str) -> str:
+        health = self._company(name)["health"]
+        if health.get("consecutive_failures"):
+            return "error"
+        if health.get("consecutive_empty"):
+            return "empty"
+        return "ok"

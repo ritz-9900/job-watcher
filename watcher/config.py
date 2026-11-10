@@ -9,6 +9,7 @@ from pathlib import Path
 FILTER_DEFAULTS: dict = {
     "title_include": [],
     "title_exclude": [],
+    "title_exclude_except": [],
     "locations": [],
     "locations_exclude": [],
     "min_experience": None,
@@ -24,10 +25,11 @@ SETTING_DEFAULTS: dict = {
     "prune_after_days": 45,
     "utc_offset_minutes": 330,  # IST
     "telegram_max_individual_messages": 15,
-    "dashboard_days": 21,
+    "dashboard_days": 30,
+    "alert_max_age_days": 3,
 }
 
-_LIST_FILTERS = ("title_include", "title_exclude", "locations", "locations_exclude")
+_LIST_FILTERS = ("title_include", "title_exclude", "title_exclude_except", "locations", "locations_exclude")
 _NUMBER_FILTERS = ("min_experience", "max_experience", "max_age_days")
 _COMPANY_KEYS = {"name", "platform", "enabled", "params", "filters", "notes"}
 
@@ -50,6 +52,7 @@ class Config:
     settings: dict
     filters: dict
     companies: list[CompanyConfig]
+    search_keywords: list[str] = field(default_factory=list)
 
     def filters_for(self, company: CompanyConfig) -> dict:
         return {**self.filters, **company.filters}
@@ -113,6 +116,14 @@ def load_config(config_dir: str | Path) -> Config:
     check_filters(raw_filters, "settings.toml [filters]")
     filters = {**FILTER_DEFAULTS, **raw_filters}
 
+    raw_search = settings_doc.get("search", {})
+    unknown = set(raw_search) - {"keywords"}
+    if unknown:
+        raise ConfigError(f"settings.toml [search]: unknown key(s) {sorted(unknown)}")
+    search_keywords = raw_search.get("keywords", [])
+    if not (isinstance(search_keywords, list) and all(isinstance(k, str) and k.strip() for k in search_keywords)):
+        raise ConfigError("settings.toml [search]: 'keywords' must be a list of non-empty strings")
+
     companies: list[CompanyConfig] = []
     seen_names: set[str] = set()
     for index, raw in enumerate(companies_doc.get("company", []), start=1):
@@ -147,6 +158,10 @@ def load_config(config_dir: str | Path) -> Config:
             missing = [p for p in adapter_cls.required_params if not params.get(p)]
             if missing:
                 raise ConfigError(f"{where}: missing params {missing}")
+            if adapter_cls.supports_keywords and "keywords" not in params:
+                # Global [search] keywords apply unless the company sets its own
+                # (keywords = [] turns searching off for that company).
+                params = {**params, "keywords": list(search_keywords)}
             try:
                 adapter_cls.validate_params(params)
             except ValueError as exc:
@@ -154,4 +169,5 @@ def load_config(config_dir: str | Path) -> Config:
 
         companies.append(CompanyConfig(name, platform, enabled, params, company_filters))
 
-    return Config(settings=settings, filters=filters, companies=companies)
+    return Config(settings=settings, filters=filters, companies=companies,
+                  search_keywords=search_keywords)

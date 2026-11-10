@@ -22,6 +22,15 @@ _MIN_RE = re.compile(
     re.IGNORECASE,
 )
 _MULTI_LOCATION_RE = re.compile(r"^\s*\d+\s+locations?\s*$", re.IGNORECASE)
+_MAX_PLAUSIBLE_YEARS = 20  # ignore "over 25 years of excellence" style company blurbs
+
+# Section headings (short lines without digits) that start / end "preferred" content.
+_PREFERRED_HEADING = re.compile(
+    r"\b(prefer\w*|nice[\s-]to[\s-]have|good[\s-]to[\s-]have|desired|desirable|bonus)\b", re.I)
+_OTHER_HEADING = re.compile(
+    r"\b(required|requirements?|minimum|basic|must[\s-]have|qualifications?|responsibilit\w*|"
+    r"what you|who you|about|role|job description|skills)\b", re.I)
+_PREFERRED_INLINE = re.compile(r"\b(prefer\w*|nice[\s-]to[\s-]have|good[\s-]to[\s-]have)\b", re.I)
 
 
 def _keyword_regex(words: list[str]) -> re.Pattern | None:
@@ -33,36 +42,74 @@ def _keyword_regex(words: list[str]) -> re.Pattern | None:
     return re.compile(rf"(?<!\w)(?:{alternatives})(?!\w)", re.IGNORECASE)
 
 
-def _mentions_experience(text: str, start: int, end: int) -> bool:
-    window = text[max(0, start - 40): end + 60].lower()
-    return "experienc" in window
+def _required_sentences(text: str):
+    """Yield sentences outside 'Preferred qualifications'-style sections, skipping
+    individual sentences that say 'preferred' / 'nice to have'."""
+    in_preferred = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        is_heading = len(stripped) <= 60 and not re.search(r"\d", stripped)
+        if is_heading:
+            if _PREFERRED_HEADING.search(stripped):
+                in_preferred = True
+            elif _OTHER_HEADING.search(stripped):
+                in_preferred = False
+            continue
+        if in_preferred:
+            continue
+        for sentence in re.split(r"(?<=[.;])\s+", stripped):
+            if not _PREFERRED_INLINE.search(sentence):
+                yield sentence
+
+
+def _is_experience_context(sentence: str, start: int, end: int) -> bool:
+    window = sentence[max(0, start - 50): end + 60].lower()
+    if "experienc" in window:
+        return True
+    # Requirement-style wording without the word "experience":
+    # "12+ years in digital analytics", "minimum 5 years of Python".
+    # A plain "10 years of clients" is not enough.
+    matched = sentence[start:end].lower()
+    requirement_style = "+" in matched or "plus" in matched or re.match(r"(minimum|min|at\s+least)", matched)
+    return bool(requirement_style and re.match(r"\s*(?:of|in)\b", sentence[end:end + 12], re.IGNORECASE))
 
 
 def parse_experience(text: str) -> tuple[int, int | None] | None:
-    """Return (min_years, max_years or None) from the first experience requirement found."""
+    """Return the job's minimum experience requirement as (min_years, max_years or None).
+
+    Uses the HIGHEST minimum stated in the required parts of the description
+    (e.g. "12+ years in analytics ... 3+ years leading teams" -> 12), ignoring
+    "preferred" sections. Returns None when no requirement is found.
+    """
     if not text:
         return None
-    candidates: list[tuple[int, int, int | None]] = []  # (position, lo, hi)
-    for m in _RANGE_RE.finditer(text):
-        lo, hi = int(m.group(1)), int(m.group(2))
-        if lo <= hi <= 40 and _mentions_experience(text, m.start(), m.end()):
-            candidates.append((m.start(), lo, hi))
-    for m in _MIN_RE.finditer(text):
-        if any(pos <= m.start() < pos + 25 for pos, _, _ in candidates):
-            continue  # part of a range already captured
-        value = next(int(g) for g in m.groups() if g is not None)
-        if value <= 40 and _mentions_experience(text, m.start(), m.end()):
-            candidates.append((m.start(), value, None))
-    if not candidates:
-        return None
-    _, lo, hi = min(candidates, key=lambda c: c[0])
-    return lo, hi
+    best: tuple[int, int | None] | None = None
+    for sentence in _required_sentences(text):
+        ranges: list[tuple[int, int, int]] = []  # (start, lo, hi)
+        for m in _RANGE_RE.finditer(sentence):
+            lo, hi = int(m.group(1)), int(m.group(2))
+            if lo <= hi <= 40 and lo <= _MAX_PLAUSIBLE_YEARS and _is_experience_context(sentence, m.start(), m.end()):
+                ranges.append((m.start(), lo, hi))
+        found = [(lo, hi) for _, lo, hi in ranges]
+        for m in _MIN_RE.finditer(sentence):
+            if any(start <= m.start() < start + 25 for start, _, _ in ranges):
+                continue  # part of a range already captured
+            value = next(int(g) for g in m.groups() if g is not None)
+            if value <= _MAX_PLAUSIBLE_YEARS and _is_experience_context(sentence, m.start(), m.end()):
+                found.append((value, None))
+        for lo, hi in found:
+            if best is None or lo > best[0]:
+                best = (lo, hi)
+    return best
 
 
 class JobFilter:
     def __init__(self, filters: dict):
         self.include = _keyword_regex(filters.get("title_include", []))
         self.exclude = _keyword_regex(filters.get("title_exclude", []))
+        self.exclude_except = _keyword_regex(filters.get("title_exclude_except", []))
         self.locations = [s.lower() for s in filters.get("locations", []) if s.strip()]
         self.locations_exclude = [s.lower() for s in filters.get("locations_exclude", []) if s.strip()]
         self.min_exp = filters.get("min_experience")
@@ -78,8 +125,12 @@ class JobFilter:
         title = job.title or ""
         if self.include and not self.include.search(title):
             return False, "title does not contain an include keyword"
-        if self.exclude and self.exclude.search(title):
-            return False, "title contains an exclude keyword"
+        if self.exclude:
+            # Phrases in title_exclude_except (e.g. "Assistant Manager") are removed
+            # before checking exclusions, so "Manager" does not exclude them.
+            checked = self.exclude_except.sub(" ", title) if self.exclude_except else title
+            if self.exclude.search(checked):
+                return False, "title contains an exclude keyword"
 
         location = (job.location or "").lower()
         location_known = bool(location.strip()) and not _MULTI_LOCATION_RE.match(location)

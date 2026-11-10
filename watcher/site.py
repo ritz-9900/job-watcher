@@ -71,13 +71,8 @@ def build_data(config: Config, store: Store, now: datetime | None = None) -> dic
                 "new": not rec.get("baseline") and first_seen >= new_since,
             })
         health = store.health_of(company.name)
-        if health.get("consecutive_failures"):
-            status = "error"
-        elif health.get("consecutive_empty"):
-            status = "empty"
-        else:
-            status = "ok"
-        companies.append({"name": company.name, "count": count, "status": status,
+        companies.append({"name": company.name, "count": count,
+                          "status": store.dashboard_status(company.name),
                           "last_success": health.get("last_success"),
                           "last_error": health.get("last_error")})
 

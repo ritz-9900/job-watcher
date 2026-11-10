@@ -71,6 +71,23 @@ class OracleTests(unittest.TestCase):
         url = http.calls[0][1]
         self.assertIn("finder=findReqs;siteNumber=CX_1,limit=25,offset=0,sortBy=POSTING_DATES_DESC", url)
 
+    def test_keyword_searches_are_merged(self):
+        cfg = company("Bank", "oracle", host="bank.fa.oraclecloud.com", site_number="CX_1",
+                      keywords=["data scientist", "machine learning"])
+
+        def respond(url, body):
+            req_id = "1" if "data%20scientist" in url else "2"
+            return {"items": [{"requisitionList": [
+                {"Id": req_id, "Title": f"Job {req_id}", "PostedDate": "2026-11-10"},
+                {"Id": "shared", "Title": "Both", "PostedDate": "2026-11-10"}]}]}
+
+        http = FakeHttp([("recruitingCEJobRequisitions", respond)])
+        adapter = OracleAdapter(cfg, http)
+        jobs = adapter.fetch_jobs(max_age_days=14)
+        self.assertEqual(sorted(j.id for j in jobs), ["1", "2", "shared"])
+        self.assertTrue(adapter.uses_search)
+        self.assertIn('keyword=%22data%20scientist%22', http.calls[0][1])
+
     def test_public_host_used_for_links(self):
         cfg = company("Card", "oracle", host="abcd.fa.us2.oraclecloud.com",
                       public_host="careers.card.com", site_number="CX_1")
@@ -157,6 +174,32 @@ class HtmlLinksTests(unittest.TestCase):
         self.assertEqual(jobs[0].title, "Senior Lead - Python, Gen AI & LLM")
         self.assertEqual(jobs[0].location, "Bengaluru, Karnataka")
         self.assertEqual(jobs[0].url, "https://careers.example.com/job/bengaluru/gen-ai-lead/34088/103120837456")
+
+    def test_query_and_offset_placeholders(self):
+        link = r'href="/job/(?P<id>\d+)"'
+        cfg = company("Site", "html_links", url="https://s.test/search?q={query}&start={offset}",
+                      link_pattern=link, job_url_template="https://s.test/job/{id}",
+                      keywords=["ml engineer", "llm"], page_size=100, max_pages=2)
+        pages = {
+            "q=ml+engineer&start=0": '<a href="/job/1"></a>',
+            "q=ml+engineer&start=100": '<a href="/job/2"></a>',
+            "q=llm&start=0": '<a href="/job/1"></a><a href="/job/3"></a>',
+            "q=llm&start=100": "",
+        }
+        http = FakeHttp([(k, v) for k, v in pages.items()])
+        adapter = HtmlLinksAdapter(cfg, http)
+        self.assertEqual(sorted(j.id for j in adapter.fetch_jobs(14)), ["1", "2", "3"])
+        self.assertTrue(adapter.uses_search)
+
+    def test_url_list_without_query_ignores_keywords(self):
+        cfg = company("Site", "html_links", urls=["https://s.test/city-a", "https://s.test/city-b"],
+                      link_pattern=r'href="/job/(?P<id>\d+)"', job_url_template="https://s.test/job/{id}",
+                      keywords=["llm"])
+        http = FakeHttp([("city-a", '<a href="/job/1"></a>'), ("city-b", '<a href="/job/2"></a>')])
+        adapter = HtmlLinksAdapter(cfg, http)
+        self.assertEqual(sorted(j.id for j in adapter.fetch_jobs(14)), ["1", "2"])
+        self.assertEqual(len(http.calls), 2)
+        self.assertFalse(adapter.uses_search)
 
     def test_template_group_must_exist(self):
         with self.assertRaises(ValueError):

@@ -138,6 +138,42 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(notifier.jobs, [])
         self.assertIn(("Gamma", 1), report.seeded)
 
+    def test_settings_change_rebaselines_silently(self):
+        self.run_watcher(RecordingNotifier())
+        # New search keywords surface many already-listed jobs: they must not alert.
+        self.config.companies[0].params = {"keywords": ["llm"]}
+        FakeAdapter.listings["Acme"] = [make_job("Acme", "1"), make_job("Acme", "old-but-new-to-us")]
+        quiet = RecordingNotifier()
+        report = self.run_watcher(quiet)
+        self.assertEqual(quiet.jobs, [])
+        self.assertIn(("Acme", 2), report.seeded)
+        # ...but genuinely new jobs after that do alert.
+        FakeAdapter.listings["Acme"].append(make_job("Acme", "fresh"))
+        loud = RecordingNotifier()
+        self.run_watcher(loud)
+        self.assertEqual([j.id for j in loud.jobs], ["fresh"])
+
+    def test_old_posting_found_late_is_not_alerted(self):
+        self.run_watcher(RecordingNotifier())
+        old = make_job("Acme", "old")
+        old.posted = date(2026, 10, 25)  # 16 days before NOW: inside max_age_days, outside alert window
+        FakeAdapter.listings["Acme"] = [make_job("Acme", "1"), old]
+        notifier = RecordingNotifier()
+        self.run_watcher(notifier)
+        self.assertEqual(notifier.jobs, [])
+        self.assertIn("old", Store(self.state_path).data["companies"]["Acme"]["jobs"])
+
+    def test_experience_backfilled_for_known_jobs(self):
+        self.config.filters.update({"min_experience": 2, "max_experience": 3})
+        self.config.settings["max_detail_fetches_per_company"] = 0
+        self.run_watcher(RecordingNotifier())  # baseline, no budget: experience unknown
+        store = Store(self.state_path)
+        self.assertIsNone(store.data["companies"]["Acme"]["jobs"]["1"]["experience_ok"])
+        self.config.settings["max_detail_fetches_per_company"] = 5
+        self.run_watcher(RecordingNotifier())  # fake details say 8+ years
+        store = Store(self.state_path)
+        self.assertIs(store.data["companies"]["Acme"]["jobs"]["1"]["experience_ok"], False)
+
     def test_prune(self):
         self.run_watcher(RecordingNotifier())
         FakeAdapter.listings["Acme"] = []

@@ -10,7 +10,16 @@ health_alert_after_runs = 3           # alert if a site fails / returns 0 jobs t
 prune_after_days = 45                 # forget jobs not seen for this long
 utc_offset_minutes = 330              # IST, used for dates in alerts
 telegram_max_individual_messages = 15 # beyond this, remaining jobs are grouped into one message
-dashboard_days = 21                   # dashboard shows matching jobs first seen within this many days
+dashboard_days = 30                   # dashboard shows matching jobs first seen within this many days
+alert_max_age_days = 3                # only alert for jobs posted within this many days (older finds: dashboard only)
+
+[search]
+# Sent to each site's own search box (where the platform supports it and robots.txt
+# allows it), so each run reads relevant jobs instead of only the newest listings.
+# Results are still checked against [filters] below. A company can override this with
+# keywords = [...] in its [company.params], or keywords = [] to turn searching off.
+keywords = ["data scientist", "data science", "machine learning", "ML engineer",
+            "AI engineer", "generative AI", "GenAI", "LLM"]
 
 [filters]
 # Target: Data Science / AI / ML / GenAI roles, 2-3 years of experience, 5 cities.
@@ -33,13 +42,17 @@ title_include = [
   "ML Engineer", "Machine Learning", "AI/ML", "AI / ML", "AI-ML", "ML/AI", "MLOps",
   "Applied Scientist",
 ]
-# Clearly-too-senior titles and non-full-time roles. "Senior"/"Lead" are NOT excluded:
-# at some companies those are 2-4 year roles, so the experience check decides instead.
+# Titles above a 2-3 year level, and non-full-time roles.
 title_exclude = [
+  "Senior", "Sr", "Lead", "Manager", "Principal", "Staff", "Distinguished", "Architect",
+  "Director", "Head", "Vice President", "VP", "Executive Director", "Expert",
   "intern", "internship", "apprentice", "trainee",
-  "Principal", "Staff", "Distinguished", "Director", "Head", "Vice President", "VP",
-  "Executive Director", "Senior Manager",
 ]
+# Phrases that are NOT excluded even though they contain an excluded word: grades that
+# are usually early/mid-level (e.g. EXL "Assistant Manager", Amex "Senior Analyst").
+# The experience check still drops any of these that ask for 4+ years.
+title_exclude_except = ["Assistant Manager", "Senior Analyst", "Sr Analyst", "Sr. Analyst",
+                        "Senior Associate", "Sr Associate", "Sr. Associate"]
 locations = ["Mumbai", "Pune", "Hyderabad", "Bengaluru", "Bangalore", "Gurugram", "Gurgaon"]
 locations_exclude = []
 # Jobs asking for more than 3 years minimum ("4+ years", "5-8 years") are dropped;
@@ -47,4 +60,4 @@ locations_exclude = []
 # no experience. Raise max_experience to 4 to also see stretch roles.
 min_experience = 2
 max_experience = 3
-max_age_days = 14
+max_age_days = 30

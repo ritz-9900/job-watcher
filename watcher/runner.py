@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -29,6 +31,10 @@ class RunReport:
     @property
     def all_failed(self) -> bool:
         return self.checked > 0 and len(self.failed) == self.checked
+
+
+def _fingerprint(params: dict) -> str:
+    return hashlib.sha256(json.dumps(params, sort_keys=True).encode("utf-8")).hexdigest()[:16]
 
 
 def run_once(
@@ -64,33 +70,58 @@ def run_once(
             continue
 
         report.fetched[company.name] = len(jobs)
-        alert = store.record_success(company.name, len(jobs), threshold, now)
+        alert = store.record_success(
+            company.name, len(jobs), threshold, now,
+            # With keyword searches, zero results can be genuine.
+            empty_is_suspicious=not getattr(adapter, "uses_search", False),
+        )
         if alert:
             report.alerts.append(alert)
 
-        # First time we see this company: record everything (so the dashboard has
-        # content straight away) but alert on nothing.
-        baseline = not store.is_seeded(company.name)
+        # Record everything silently (no alerts) the first time a company is seen, and
+        # again whenever its fetch settings change (e.g. new search keywords), so a
+        # config change does not flood you with alerts for already-listed jobs.
+        fingerprint = _fingerprint(company.params)
+        baseline = not store.is_seeded(company.name) or store.fingerprint(company.name) != fingerprint
         detail_budget = int(settings["max_detail_fetches_per_company"])
+
+        def check_experience(job) -> bool | None:
+            nonlocal detail_budget
+            if not job.description and detail_budget > 0:
+                detail_budget -= 1
+                try:
+                    job.description = adapter.fetch_description(job)
+                except Exception as exc:
+                    log.info("%s: could not fetch details for %s: %s", company.name, job.id, exc)
+            if not job.description:
+                return None  # unknown: try again on a later run
+            return job_filter.experience_match(job)[0]
+
         for job in jobs:
             key = (job.company, job.id)
             if key in matched_keys:
                 continue
             if store.is_known(job):
                 store.remember(job, now)  # refresh last_seen and listing details
+                record = store.record_of(job)
+                # Backfill experience checks that could not run earlier (detail budget).
+                if (job_filter.uses_experience and record.get("experience_ok") is None
+                        and detail_budget > 0 and job_filter.basic_match(job, today)[0]):
+                    result = check_experience(job)
+                    if result is not None:
+                        store.set_experience_ok(job, result)
                 continue
             ok, reason = job_filter.basic_match(job, today)
             experience_ok = None
             if ok and job_filter.uses_experience:
-                if not job.description and detail_budget > 0:
-                    detail_budget -= 1
-                    try:
-                        job.description = adapter.fetch_description(job)
-                    except Exception as exc:
-                        log.info("%s: could not fetch details for %s: %s", company.name, job.id, exc)
-                ok, reason = job_filter.experience_match(job)
-                experience_ok = ok
-            if ok and not baseline:
+                experience_ok = check_experience(job)
+                if experience_ok is False:
+                    ok, reason = False, "experience outside range"
+            # A job can be new to the watcher but not recently posted (e.g. after the age
+            # window was widened). Those go to the dashboard without an alert.
+            stale = (job.posted is not None
+                     and (today - job.posted).days > settings["alert_max_age_days"])
+            if ok and not baseline and not stale:
                 matched_keys.add(key)
                 report.matched.append(job)
                 job.extra["experience_ok"] = experience_ok
@@ -101,8 +132,10 @@ def run_once(
                     log.debug("%s: skipped '%s' (%s)", company.name, job.title, reason)
         if baseline:
             store.mark_seeded(company.name)
+            store.set_fingerprint(company.name, fingerprint)
             report.seeded.append((company.name, len(jobs)))
-            log.info("%s: first run, saved %d existing jobs without alerting", company.name, len(jobs))
+            log.info("%s: baseline run (first run or settings changed), saved %d jobs without alerting",
+                     company.name, len(jobs))
 
     if report.matched:
         results = [notifier.send_jobs(report.matched, tz) for notifier in notifiers]

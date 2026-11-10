@@ -23,20 +23,23 @@ def _from_epoch(value) -> date | None:
 class EightfoldAdapter(Adapter):
     platform = "eightfold"
     required_params = ("host", "domain")
+    supports_keywords = True
 
     def __init__(self, company, http):
         super().__init__(company, http)
         self.host = self.params["host"]
         self.domain = self.params["domain"]
         self.location = self.params.get("location", "")
-        self.query = self.params.get("query", "")
+        if not self.keywords and self.params.get("query"):
+            self.keywords = [self.params["query"]]
         self.page_size = int(self.params.get("page_size", 10))
-        self.max_pages = int(self.params.get("max_pages", 10))
+        self.max_pages = int(self.params.get("max_pages", 3 if self.keywords else 10))
 
     @classmethod
     def validate_params(cls, params):
         if not str(params.get("host", "")).endswith("eightfold.ai"):
             raise ValueError("eightfold 'host' should look like '<tenant>.eightfold.ai'")
+        cls._check_keywords(params)
 
     def _query(self, **extra) -> str:
         params = {"domain": self.domain, **extra}
@@ -45,9 +48,15 @@ class EightfoldAdapter(Adapter):
     def fetch_jobs(self, max_age_days):
         cutoff = date.today() - timedelta(days=max_age_days) if max_age_days is not None else None
         jobs = []
+        for keyword in self.keywords or [""]:
+            jobs.extend(self._search(keyword, cutoff))
+        return dedupe(jobs)
+
+    def _search(self, keyword: str, cutoff):
+        jobs = []
         for page in range(self.max_pages):
             query = self._query(start=page * self.page_size, num=self.page_size,
-                                sort_by="timestamp", location=self.location, query=self.query)
+                                sort_by="timestamp", location=self.location, query=keyword)
             data = self.http.get_json(f"https://{self.host}/api/apply/v2/jobs?{query}")
             positions = data.get("positions") or []
             page_jobs = []
@@ -71,7 +80,7 @@ class EightfoldAdapter(Adapter):
             dated = [j.posted for j in page_jobs if j.posted]
             if cutoff and dated and max(dated) < cutoff:
                 break  # whole page is older than the age filter
-        return dedupe(jobs)
+        return jobs
 
     def fetch_description(self, job):
         data = self.http.get_json(f"https://{self.host}/api/apply/v2/jobs/{job.id}?{self._query()}")

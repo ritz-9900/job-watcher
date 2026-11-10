@@ -33,6 +33,7 @@ def parse_posted_on(text: str | None, today: date) -> date | None:
 class WorkdayAdapter(Adapter):
     platform = "workday"
     required_params = ("host", "tenant", "site")
+    supports_keywords = True
 
     def __init__(self, company, http):
         super().__init__(company, http)
@@ -40,9 +41,11 @@ class WorkdayAdapter(Adapter):
         self.tenant = self.params["tenant"]
         self.site = self.params["site"]
         self.locale = self.params.get("locale", "en-US")
-        self.search_text = self.params.get("search_text", "")
+        if not self.keywords and self.params.get("search_text"):
+            self.keywords = [self.params["search_text"]]
         self.applied_facets = self.params.get("applied_facets", {})
-        self.max_pages = int(self.params.get("max_pages", 10))
+        # Per search: 3 pages (60 jobs) per keyword, or 10 pages without keywords.
+        self.max_pages = int(self.params.get("max_pages", 3 if self.keywords else 10))
 
     @classmethod
     def validate_params(cls, params):
@@ -50,25 +53,32 @@ class WorkdayAdapter(Adapter):
             raise ValueError("workday 'host' should look like '<tenant>.wd3.myworkdayjobs.com'")
         if not isinstance(params.get("applied_facets", {}), dict):
             raise ValueError("workday 'applied_facets' must be a table of facet -> [ids]")
+        cls._check_keywords(params)
 
     @property
     def _api(self) -> str:
         return f"https://{self.host}/wday/cxs/{self.tenant}/{self.site}"
 
-    def _page(self, offset: int) -> dict:
+    def _page(self, offset: int, search_text: str = "") -> dict:
         body = {
             "appliedFacets": self.applied_facets,
             "limit": _PAGE_SIZE,
             "offset": offset,
-            "searchText": self.search_text,
+            "searchText": search_text,
         }
         return self.http.post_json(f"{self._api}/jobs", body)
 
     def fetch_jobs(self, max_age_days):
+        jobs = []
+        for keyword in self.keywords or [""]:
+            jobs.extend(self._search(keyword))
+        return dedupe(jobs)
+
+    def _search(self, keyword: str) -> list:
         today = date.today()
         jobs = []
         for page in range(self.max_pages):
-            data = self._page(page * _PAGE_SIZE)
+            data = self._page(page * _PAGE_SIZE, keyword)
             postings = data.get("jobPostings") or []
             for posting in postings:
                 path = posting.get("externalPath")
@@ -85,7 +95,7 @@ class WorkdayAdapter(Adapter):
                 ))
             if len(postings) < _PAGE_SIZE:
                 break
-        return dedupe(jobs)
+        return jobs
 
     def fetch_description(self, job):
         data = self.http.get_json(f"{self._api}{job.extra['path']}")
@@ -94,7 +104,7 @@ class WorkdayAdapter(Adapter):
 
     def probe(self):
         data = self._page(0)
-        lines = [f"total jobs reported: {data.get('total')}"]
+        lines = [f"total jobs reported (no keyword): {data.get('total')}"]
         lines += super().probe()
         lines.append("facets you can use in 'applied_facets' (facetParameter -> value id):")
         for facet in data.get("facets") or []:

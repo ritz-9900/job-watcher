@@ -28,9 +28,30 @@ class ParseExperienceTests(unittest.TestCase):
     def test_ignores_non_experience_years(self):
         self.assertIsNone(parse_experience("Founded 25 years ago, we serve 10 years of clients."))
 
-    def test_first_mention_wins(self):
+    def test_preferred_sentence_ignored(self):
         text = "2-4 years of experience with Python. 6+ years experience preferred."
         self.assertEqual(parse_experience(text), (2, 4))
+
+    def test_highest_minimum_wins(self):
+        # Shape of an Optum posting (2026-11-10): the 12+ requirement has no "experience" word.
+        text = ("Required Qualifications:\n"
+                "12+ years in digital analytics or related field, with deep Adobe expertise\n"
+                "3+ years in leadership/managerial roles, building and guiding analytics teams\n")
+        self.assertEqual(parse_experience(text), (12, None))
+
+    def test_preferred_section_ignored(self):
+        # Shape of a Google posting: minimum vs preferred qualification lists.
+        text = ("Minimum qualifications\n"
+                "Bachelor's degree or equivalent practical experience.\n"
+                "2 years of experience with machine learning.\n"
+                "Preferred qualifications\n"
+                "8 years of experience in software development.\n"
+                "About the job\n"
+                "Our team builds things.\n")
+        self.assertEqual(parse_experience(text), (2, None))
+
+    def test_company_blurb_ignored(self):
+        self.assertIsNone(parse_experience("For over 25 years of excellence in our industry."))
 
     def test_none(self):
         self.assertIsNone(parse_experience(""))
@@ -50,6 +71,12 @@ class JobFilterTests(unittest.TestCase):
         f = JobFilter({"title_exclude": ["intern"]})
         self.assertFalse(f.basic_match(job("Data Science Intern"), TODAY)[0])
         self.assertTrue(f.basic_match(job("Internal Tools Engineer"), TODAY)[0])
+
+    def test_exclude_except(self):
+        f = JobFilter({"title_exclude": ["Manager", "Senior"], "title_exclude_except": ["Assistant Manager"]})
+        self.assertTrue(f.basic_match(job("Assistant Manager - Data Science"), TODAY)[0])
+        self.assertFalse(f.basic_match(job("Manager - Data Science"), TODAY)[0])
+        self.assertFalse(f.basic_match(job("Senior Assistant Manager - Analytics"), TODAY)[0])
 
     def test_location(self):
         f = JobFilter({"locations": ["india"]})

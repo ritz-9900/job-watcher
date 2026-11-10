@@ -38,10 +38,10 @@ name = "Google"
 platform = "html_links"
 enabled = true
 notes = """Parses Google's job-results HTML (most fragile entry). google.com/robots.txt
-disallows the page= parameter for crawlers, so only the first results page (newest, sorted
-by date) is read. Running every 30 minutes, that page should still catch new postings."""
+disallows the page= parameter for crawlers, so only the first results page (20 newest) is
+read, once per search keyword."""
 [company.params]
-url = "https://www.google.com/about/careers/applications/jobs/results?location=India&sort_by=date"
+url = "https://www.google.com/about/careers/applications/jobs/results?q={query}&location=India&sort_by=date"
 link_pattern = 'href="jobs/results/(?P<id>\d{6,})-(?P<slug>[a-z0-9-]+)[^"]*"\s+aria-label="Learn more about (?P<title>[^"]+)"'
 job_url_template = "https://www.google.com/about/careers/applications/jobs/results/{id}-{slug}"
 max_pages = 1
@@ -60,10 +60,15 @@ name = "Optum"
 platform = "html_links"
 enabled = true
 notes = """Verified live 2026-11-10. careers.unitedhealthgroup.com is a Radancy/TalentBrew site.
-robots.txt disallows /search-jobs/, so this reads the India *location* page (allowed),
-which lists the 15 newest India jobs. The p= paging parameter is ignored by the site."""
+robots.txt disallows /search-jobs/ (keyword search), so this reads the per-city *location*
+pages (allowed), 15 newest jobs each. There is no Mumbai page. Paging (p=) is ignored."""
 [company.params]
-url = "https://careers.unitedhealthgroup.com/location/india-jobs/34088/1269750/2"
+urls = [
+  "https://careers.unitedhealthgroup.com/location/bengaluru-karnataka-india-jobs/34088/1269750-1267701-1277333/4",
+  "https://careers.unitedhealthgroup.com/location/hyderabad-telangana-india-jobs/34088/1269750-1254788-1269843/4",
+  "https://careers.unitedhealthgroup.com/location/gurgaon-haryana-india-jobs/34088/1269750-1270260-1270642/4",
+  "https://careers.unitedhealthgroup.com/location/pune-maharashtra-india-jobs/34088/1269750-1264418-1259229/4",
+]
 link_pattern = '(?s)href="(?P<path>/job/[^"/]+/[^"/]+/34088/(?P<id>\d+))"[^>]*>\s*<div>\s*<h2>(?P<title>[^<]+)</h2>.*?class="job-location[^"]*">(?P<location>[^<]+)<'
 job_url_template = "https://careers.unitedhealthgroup.com{path}"
 max_pages = 1
@@ -73,10 +78,12 @@ name = "Nomura"
 platform = "html_links"
 enabled = true
 notes = """Verified live 2026-11-10. careers.nomura.com is SAP SuccessFactors. robots.txt
-disallows /services/ (the RSS feed), so this reads the /search/ results page sorted by
-date (allowed): the 25 newest jobs worldwide; the location filter keeps the India ones."""
+disallows /services/ (the RSS feed); /search/ is allowed. Its keyword search did not
+filter results, so this reads ALL listings (100 per page, paged with startrow) and the
+title/location filters do the matching."""
 [company.params]
-url = "https://careers.nomura.com/search/?q=&sortColumn=referencedate&sortDirection=desc"
+url = "https://careers.nomura.com/search/?q=&sortColumn=referencedate&sortDirection=desc&startrow={offset}"
+page_size = 100
+max_pages = 8
 link_pattern = '(?s)<tr class="data-row">.*?<a href="(?P<path>/Nomura/job/[^"]+/(?P<id>\d+)/)" class="jobTitle-link">(?P<title>[^<]+)</a>.*?<td class="colLocation[^"]*"[^>]*>\s*<span class="jobLocation">(?P<location>[^<]+)</span>'
 job_url_template = "https://careers.nomura.com{path}"
-max_pages = 1

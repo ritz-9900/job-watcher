@@ -30,6 +30,7 @@ def _parse_date(value: str | None) -> date | None:
 class OracleAdapter(Adapter):
     platform = "oracle"
     required_params = ("host", "site_number")
+    supports_keywords = True
 
     def __init__(self, company, http):
         super().__init__(company, http)
@@ -39,16 +40,20 @@ class OracleAdapter(Adapter):
         self.public_host = self.params.get("public_host") or self.host
         self.site = self.params["site_number"]
         self.lang = self.params.get("lang", "en")
-        self.keyword = self.params.get("keyword", "")
         self.location_id = self.params.get("location_id", "")
-        self.max_pages = int(self.params.get("max_pages", 4))
+        if not self.keywords and self.params.get("keyword"):
+            self.keywords = [self.params["keyword"]]
+        # Per search: newest 50 jobs per keyword, or newest 100 without keywords.
+        self.max_pages = int(self.params.get("max_pages", 2 if self.keywords else 4))
 
     @classmethod
     def validate_params(cls, params):
         if "oraclecloud.com" not in str(params.get("host", "")):
             raise ValueError("oracle 'host' should look like '<tenant>.fa.oraclecloud.com'")
-        if '"' in str(params.get("keyword", "")):
-            raise ValueError("oracle 'keyword' must not contain double quotes")
+        cls._check_keywords(params)
+        words = list(params.get("keywords", [])) + [str(params.get("keyword", ""))]
+        if any('"' in w for w in words):
+            raise ValueError("oracle keywords must not contain double quotes")
 
     def _job_url(self, job_id: str) -> str:
         if self.public_host != self.host:
@@ -75,14 +80,13 @@ class OracleAdapter(Adapter):
                 ) from None
             raise
 
-    def fetch_jobs(self, max_age_days):
-        cutoff = date.today() - timedelta(days=max_age_days) if max_age_days is not None else None
+    def _search(self, keyword: str, cutoff: date | None) -> list:
         jobs = []
         for page in range(self.max_pages):
             parts = [f"siteNumber={self.site}", f"limit={_PAGE_SIZE}",
                      f"offset={page * _PAGE_SIZE}", "sortBy=POSTING_DATES_DESC"]
-            if self.keyword:
-                parts.append(f'keyword="{self.keyword}"')
+            if keyword:
+                parts.append(f'keyword="{keyword}"')
             if self.location_id:
                 parts.append(f"locationId={self.location_id}")
             url = self._api("recruitingCEJobRequisitions", "findReqs;" + ",".join(parts),
@@ -111,6 +115,13 @@ class OracleAdapter(Adapter):
             oldest = min((j.posted for j in page_jobs if j.posted), default=None)
             if cutoff and oldest and oldest < cutoff:
                 break
+        return jobs
+
+    def fetch_jobs(self, max_age_days):
+        cutoff = date.today() - timedelta(days=max_age_days) if max_age_days is not None else None
+        jobs = []
+        for keyword in self.keywords or [""]:
+            jobs.extend(self._search(keyword, cutoff))
         return dedupe(jobs)
 
     def fetch_description(self, job):
