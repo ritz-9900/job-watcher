@@ -13,7 +13,7 @@ telegram_max_individual_messages = 15 # beyond this, remaining jobs are grouped 
 dashboard_days = 21                   # dashboard shows matching jobs first seen within this many days
 
 [filters]
-# PLACEHOLDERS: replace with your real filters.
+# Target: Data Science / AI / ML / GenAI roles, 2-3 years of experience, 5 cities.
 # Matching rules:
 #  - Keywords match whole words, case-insensitive ("AI" will not match "maintain").
 #  - title_include: the title must contain at least one keyword. Empty list = any title.
@@ -23,11 +23,28 @@ dashboard_days = 21                   # dashboard shows matching jobs first seen
 #    description. Jobs that state no experience are kept. Delete both lines to turn this off.
 #  - max_age_days: skip jobs posted longer ago than this (when the site shows a date).
 
-title_include = []   # e.g. ["AI", "GenAI", "Generative AI", "LLM", "Machine Learning", "Data Scientist", "Python"]
-title_exclude = ["intern", "internship", "apprentice"]
-locations = ["India", "Bengaluru", "Bangalore", "Gurugram", "Gurgaon", "Noida", "Delhi",
-             "Hyderabad", "Mumbai", "Pune", "Chennai"]
+title_include = [
+  # Data science
+  "Data Scientist", "Data Science",
+  # AI / GenAI engineering
+  "AI Engineer", "AI Software Engineer", "AI Developer", "Applied AI",
+  "GenAI", "Gen AI", "Generative AI", "LLM", "Agentic", "Agentic AI", "NLP",
+  # ML engineering
+  "ML Engineer", "Machine Learning", "AI/ML", "AI / ML", "AI-ML", "ML/AI", "MLOps",
+  "Applied Scientist",
+]
+# Clearly-too-senior titles and non-full-time roles. "Senior"/"Lead" are NOT excluded:
+# at some companies those are 2-4 year roles, so the experience check decides instead.
+title_exclude = [
+  "intern", "internship", "apprentice", "trainee",
+  "Principal", "Staff", "Distinguished", "Director", "Head", "Vice President", "VP",
+  "Executive Director", "Senior Manager",
+]
+locations = ["Mumbai", "Pune", "Hyderabad", "Bengaluru", "Bangalore", "Gurugram", "Gurgaon"]
 locations_exclude = []
-# min_experience = 2
-# max_experience = 6
+# Jobs asking for more than 3 years minimum ("4+ years", "5-8 years") are dropped;
+# jobs whose range reaches 2-3 years ("1-3", "3-5") are kept, as are jobs that state
+# no experience. Raise max_experience to 4 to also see stretch roles.
+min_experience = 2
+max_experience = 3
 max_age_days = 14
