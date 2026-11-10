@@ -2,9 +2,10 @@ name: Job watcher
 
 on:
   schedule:
-    # Every 30 minutes, 02:00-18:30 UTC = 07:30-00:00 IST. About 34 runs/day.
+    # Hourly at :30 UTC from 01:30 to 18:30 UTC = every hour 07:00-00:00 IST (18 runs/day).
     # GitHub may start scheduled runs late (sometimes 5-30+ min) when busy.
-    - cron: "*/30 2-18 * * *"
+    # Keep watcher/site.py SCHEDULE_NOTE in sync with this line.
+    - cron: "30 1-18 * * *"
   workflow_dispatch:
     inputs:
       dry_run:

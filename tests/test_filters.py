@@ -93,6 +93,17 @@ class JobFilterTests(unittest.TestCase):
         self.assertFalse(f.basic_match(job(posted=date(2026, 10, 1)), TODAY)[0])
         self.assertTrue(f.basic_match(job(posted=None), TODAY)[0])
 
+    def test_experience_ranges_for_2_to_4_years(self):
+        f = JobFilter({"min_experience": 2, "max_experience": 4})
+        cases = {
+            "1-4 years of experience": True, "0-4 years of experience": True,
+            "2+ years of experience": True, "4+ years of experience": True,
+            "0-1 years of experience": False, "5+ years of experience": False,
+            "6-8 years of experience": False,
+        }
+        for text, expected in cases.items():
+            self.assertEqual(f.experience_match(job(description=text))[0], expected, text)
+
     def test_experience(self):
         f = JobFilter({"min_experience": 2, "max_experience": 5})
         self.assertTrue(f.uses_experience)
