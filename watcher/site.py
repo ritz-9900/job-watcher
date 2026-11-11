@@ -19,7 +19,7 @@ from .models import Job
 from .store import Store
 
 TEMPLATE = Path(__file__).resolve().parent / "site_template" / "index.html"
-# Keep in sync with the cron line in .github/workflows/watch.yml.
+# Keep in sync with the external trigger's schedule (README.md, "Hourly trigger").
 SCHEDULE_NOTE = "hourly, 07:00-00:00 IST"
 
 

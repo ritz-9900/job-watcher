@@ -5,7 +5,8 @@ Checks company career sites every hour (07:00-00:00 IST), sends a **Telegram ale
 jobs to GitHub Pages after every scan, so you can apply within hours of posting.
 
 - Pure Python standard library (3.11+). Nothing to install.
-- Runs free on GitHub Actions (18 scheduled runs/day; public repos have unlimited minutes).
+- Runs free on GitHub Actions (18 runs/day; public repos have unlimited minutes), started
+  hourly by a free external scheduler.
 - One adapter per **hiring platform**. Adding a company on a supported platform is a
   config change only.
 
@@ -92,8 +93,29 @@ dashboard is at `https://<your-username>.github.io/<repo>/`.
 2. Run **Probe career sites** manually and read the log (see next section).
 3. Run **Job watcher** manually once. The first run seeds silently, and the dashboard
    fills with the currently listed matching jobs.
-4. After that it runs on schedule. Use **Job watcher** with `dry_run` ticked to see
-   matches in the log without sending alerts.
+4. Set up the hourly trigger (next section). Use **Job watcher** with `dry_run` ticked to
+   see matches in the log without sending alerts.
+
+### 6. Hourly trigger
+GitHub's built-in `schedule:` trigger skipped most hourly runs on this repo, so
+`watch.yml` has no schedule. A free external scheduler starts it through GitHub's API:
+
+1. **Token.** GitHub → Settings → Developer settings → Fine-grained tokens → Generate.
+   Only select repositories: this repo. Repository permissions: **Actions: Read and write**
+   (nothing else). This token can start, cancel and re-run this repo's workflows; it
+   cannot read secrets or change code. Note the expiry date.
+2. **cron-job.org** (free account) → Create cronjob:
+   - URL: `https://api.github.com/repos/<owner>/<repo>/actions/workflows/watch.yml/dispatches`
+   - Schedule: Custom, time zone UTC, crontab `30 1-18 * * *` (hourly 07:00-00:00 IST)
+   - Advanced → method `POST`, body `{"ref":"main"}`, headers
+     `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`,
+     `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`
+   - Turn on failure notifications.
+3. **Test run** should return **204** and a new run appears in the Actions tab.
+
+When the token expires, cron-job.org starts reporting 401: regenerate it and paste the new
+value into the `Authorization` header. If you change the schedule, update
+`SCHEDULE_NOTE` in `watcher/site.py` (shown on the dashboard).
 
 ## Dashboard
 
@@ -136,9 +158,8 @@ How it works and what to know:
   same passphrase. Forgotten passphrase: delete the Gist on GitHub and set up again (marks are lost).
 - The token can only read and write your Gists. It cannot touch repositories or settings.
 
-Every scheduled scan republishes the page, so just refresh it. "Updated X min ago" shows
-when the last scan finished. To scan outside the schedule, run **Job watcher** from the
-Actions tab.
+Every hourly scan republishes the page, so just refresh it. "Updated X min ago" shows
+when the last scan finished. To scan in between, run **Job watcher** from the Actions tab.
 
 It shows matching jobs first seen in the last `dashboard_days` (default 30). Filters are
 re-applied each time the page is built, so editing `settings.toml` updates it too.
@@ -212,8 +233,8 @@ so check the job description.
   another alert when it recovers.
 - If alerts can't be delivered (e.g. Telegram down and email down), those jobs are retried
   next run instead of being lost.
-- GitHub sometimes starts scheduled runs late or skips one when busy, so with hourly runs an
-  alert can arrive up to about 1.5 hours after a job is posted.
+- With hourly scans, an alert arrives up to about 1 hour after a job appears on the
+  career site (plus the ~5 minutes a scan takes).
 
 ## Responsible use
 
@@ -222,7 +243,7 @@ so check the job description.
 - Every site's `robots.txt` is checked and respected under RFC 9309, including `*`/`$`
   wildcards. Disallowed URLs are not fetched. As the RFC specifies, a 4xx response for
   robots.txt means "no rules"; a 5xx or network error means "assume everything is disallowed".
-- Requests are slow (1.5 s+ between requests to a site, scheduled scans once an hour) and
+- Requests are slow (1.5 s+ between requests to a site, scans once an hour) and
   identify themselves with a fixed user agent.
 - The JSON endpoints used are the ones each public career page calls itself. They're
   undocumented (except Greenhouse and Lever), so they can change without notice. Review
@@ -258,5 +279,5 @@ watcher/
   http.py          polite HTTP client (robots.txt, delays, retries)
   robots.py        RFC 9309 robots.txt parser/matcher
 tests/             offline unit tests with synthetic responses
-.github/workflows/ watch.yml (schedule + dashboard deploy), probe.yml (manual), tests.yml (on push)
+.github/workflows/ watch.yml (scan + dashboard deploy), probe.yml (manual), tests.yml (on push)
 ```
