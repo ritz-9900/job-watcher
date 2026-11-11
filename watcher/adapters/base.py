@@ -28,6 +28,11 @@ class Adapter:
         self.http = http
         self.max_pages = int(self.params.get("max_pages", 5))
         self.keywords: list[str] = list(self.params.get("keywords") or [])
+        # Optional per-company politeness: a longer gap between requests to this host
+        # (for sites that rate-limit, e.g. Microsoft). Never shorter than the global delay.
+        delay = self.params.get("request_delay_seconds")
+        if delay and self.params.get("host") and hasattr(http, "set_min_delay"):
+            http.set_min_delay(self.params["host"], float(delay))
 
     @property
     def uses_search(self) -> bool:

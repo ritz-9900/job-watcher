@@ -1,3 +1,4 @@
+import time
 import unittest
 
 from watcher.http import PRODUCT_TOKEN, BlockedByRobots, HttpClient, HttpError
@@ -51,6 +52,29 @@ class RobotsRulesTests(unittest.TestCase):
     def test_empty_disallow_allows_everything(self):
         rules = RobotsRules.parse("User-agent: *\nDisallow:\n")
         self.assertTrue(rules.can_fetch(PRODUCT_TOKEN, "https://x/anything"))
+
+
+class HostDelayTests(unittest.TestCase):
+    def test_per_host_delay_only_slows_that_host(self):
+        waits = []
+        client = HttpClient(delay=1.0, sleep=waits.append)
+        client.set_min_delay("slow.test", 6.0)
+        client.set_min_delay("slow.test", 2.0)              # never lowered by a later call
+        now = time.monotonic()
+        client._last_request = {"slow.test": now, "fast.test": now}
+        client._wait_for("slow.test")
+        client._wait_for("fast.test")
+        self.assertGreaterEqual(waits[0], 5.9)              # ~6 s (+ jitter up to 3 s)
+        self.assertLessEqual(waits[0], 9.0)
+        self.assertLessEqual(waits[1], 1.5)                 # global 1 s (+ jitter up to 0.5 s)
+
+    def test_adapter_param_sets_host_delay(self):
+        from tests.helpers import company
+        from watcher.adapters.eightfold import EightfoldAdapter
+        client = HttpClient(delay=1.0)
+        EightfoldAdapter(company("Soft", "eightfold", host="slow.test", domain="soft.com",
+                                 request_delay_seconds=6), client)
+        self.assertEqual(client._host_delay, {"slow.test": 6.0})
 
 
 class RobotsStatusTests(unittest.TestCase):

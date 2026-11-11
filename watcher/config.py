@@ -178,6 +178,11 @@ def load_config(config_dir: str | Path) -> Config:
                 adapter_cls.validate_params(params)
             except ValueError as exc:
                 raise ConfigError(f"{where}: {exc}") from None
+            delay = params.get("request_delay_seconds")
+            if delay is not None and (not isinstance(delay, (int, float)) or not 0 < delay <= 30
+                                      or not params.get("host")):
+                raise ConfigError(f"{where}: 'request_delay_seconds' must be a number of seconds "
+                                  "(0-30) and needs a 'host' param")
 
         website = raw.get("website", "")
         if not isinstance(website, str) or (website and not _DOMAIN_RE.match(website)):

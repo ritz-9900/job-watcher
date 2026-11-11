@@ -39,10 +39,17 @@ alerts on jobs that appear after that. This also applies when you add a company 
 | S&P Global | Workday (`SPGI_Careers`) | all India listings via Workday's country filter (~50 jobs; verified 2026-11-11) |
 | HSBC | Eightfold on HSBC's own domain (`portal.careers.hsbc.com`) | site search per keyword within India (verified 2026-11-11) |
 | BCG | Phenom People (`careers.bcg.com`) | all India listings newest first, 10 per page, until the age limit (~60 jobs in 30 days; verified 2026-11-11) |
+| Mastercard | Workday (`CorporateCareers`) | site search per keyword, limited to the Pune, Gurgaon, Bangalore, Hyderabad and (Navi) Mumbai offices (verified 2026-11-11) |
+| Citi | Workday (site `2`) | site search per keyword within India (verified 2026-11-11) |
+| Microsoft | Eightfold, newer PCSX search (`apply.careers.microsoft.com`) | 4 keywords within India, 6 s between requests because Microsoft rate-limits (verified 2026-11-11) |
 
-**Not watchable: Bain & Company.** Its job search API is behind Cloudflare bot protection
-and returns 403 to non-browser clients, and its sitemap has no job pages. Getting past that
-would mean evading bot protection, so it is not included.
+**Not watchable:**
+- **Bain & Company.** Its job search API is behind Cloudflare bot protection and returns 403
+  to non-browser clients, and its sitemap has no job pages. Getting past that would mean
+  evading bot protection.
+- **Walmart Global Tech.** careers.walmart.com's robots.txt disallows its search (`/api`,
+  `/results`), and its sitemap lists ~16,000 job URLs (almost all US stores) with no
+  location, so finding India roles would mean opening hundreds of job pages a day.
 
 ## Search keywords
 
@@ -204,6 +211,10 @@ doesn't allow this kind of access. In that case leave it disabled.
 **Workday tips:** add `search_text = "data"` to narrow results on the site's side, or
 `applied_facets = { locationCountry = ["<id from probe>"] }` to restrict to India.
 Workday returns 20 jobs per page and the watcher reads up to `max_pages` (default 10).
+
+**Sites that rate-limit (HTTP 429):** add `request_delay_seconds = 6` (up to 30) to that
+company's `[company.params]` to space out requests to its `host`, and give it fewer
+`keywords`. The global `request_delay_seconds` in `settings.toml` still applies to every site.
 
 **Site the helper doesn't recognise:** use `platform = "html_links"` with a search-results
 URL and a regex for the job links (see the Google entry), or add an adapter:

@@ -48,7 +48,12 @@ class HttpClient:
         self.retries = max(1, retries)
         self._sleep = sleep
         self._last_request: dict[str, float] = {}
+        self._host_delay: dict[str, float] = {}
         self._robots: dict[str, RobotsRules] = {}
+
+    def set_min_delay(self, host: str, seconds: float) -> None:
+        """Wait at least `seconds` between requests to `host` (never less than the global delay)."""
+        self._host_delay[host] = max(seconds, self._host_delay.get(host, 0.0))
 
     # Public helpers -------------------------------------------------------
     def get_text(self, url: str, headers: dict | None = None, *, check_robots: bool = True) -> str:
@@ -124,11 +129,12 @@ class HttpClient:
     # Internals ------------------------------------------------------------
     def _wait_for(self, host: str) -> None:
         last = self._last_request.get(host)
-        if last is None or self.delay <= 0:
+        delay = max(self.delay, self._host_delay.get(host, 0.0))
+        if last is None or delay <= 0:
             return
-        wait = self.delay - (time.monotonic() - last)
+        wait = delay - (time.monotonic() - last)
         if wait > 0:
-            self._sleep(wait + random.uniform(0, self.delay / 2))
+            self._sleep(wait + random.uniform(0, delay / 2))
 
     @staticmethod
     def _backoff(attempt: int, retry_after: str | None = None) -> float:

@@ -12,6 +12,11 @@
 # listings are not in its sitemap. Getting past that would mean evading bot protection,
 # so it is left out (checked 2026-11-11).
 #
+# Not watchable: Walmart Global Tech. careers.walmart.com's robots.txt disallows /api and
+# /results (its search), the guessed Workday tenant does not exist, and the sitemap lists
+# ~16,000 job URLs (almost all US stores) with no location, so finding India roles would
+# mean opening hundreds of job pages a day (checked 2026-11-11).
+#
 # STATUS: every entry below was verified live (date in its notes). Sites change without
 # notice: if one breaks, run the "Probe career sites" GitHub workflow and check its log.
 
@@ -96,6 +101,58 @@ host = "careers.bcg.com"
 locale_path = "global/en"
 query = { qcountry = "India" }
 max_pages = 12                # 10 per page; India had 111 jobs on 2026-11-11
+
+[[company]]
+name = "Mastercard"
+website = "mastercard.com"
+platform = "workday"
+enabled = true
+notes = """Verified live 2026-11-11. careers.mastercard.com (Phenom) links to Workday
+CorporateCareers. Searches each keyword, limited to Mastercard's offices in the five cities
+via Workday's location facet (ids from `python -m watcher probe --only Mastercard`)."""
+[company.params]
+host = "mastercard.wd1.myworkdayjobs.com"
+tenant = "mastercard"
+site = "CorporateCareers"
+applied_facets = { locations = [
+  "8eab563831bf10acbc722e4859721571", "8ffae25149e210718ae5b2e1cb1993bb",  # Pune
+  "8eab563831bf10acb97b7fba5feff76e", "2e83df2db0851073b1d3be60012912d5",  # Gurgaon
+  "8eab563831bf10acb5d384310bb7d5ec",                                      # Bangalore
+  "8eab563831bf10acb9d6f1103d78fa67",                                      # Hyderabad
+  "8eab563831bf10acbb7b5bf86d570af1", "4a21bf4e5285455eb8a0037a87adf523",  # Mumbai
+  "28905a74db1b10019f5bb16c36030000",                                      # Navi Mumbai (Finicity)
+] }
+
+[[company]]
+name = "Citi"
+website = "citigroup.com"
+platform = "workday"
+enabled = true
+notes = """Verified live 2026-11-11. jobs.citi.com (Radancy/TalentBrew) links to Workday site "2".
+Searches each keyword within India (Workday country facet; ~940 India jobs)."""
+[company.params]
+host = "citi.wd5.myworkdayjobs.com"
+tenant = "citi"
+site = "2"
+applied_facets = { Country_and_Jurisdiction = ["c4f78be1a8f14da0ab49ce1162348a5e"] }  # India
+
+[[company]]
+name = "Microsoft"
+website = "microsoft.com"
+platform = "eightfold"
+enabled = true
+notes = """Verified live 2026-11-11. careers.microsoft.com uses Eightfold at
+apply.careers.microsoft.com with the newer PCSX search (the v2 API answers 403 "Not
+authorized for PCSX"); robots.txt allows /api/pcsx. Searches each keyword within India.
+Microsoft rate-limits this API (HTTP 429 after a handful of quick requests, no Retry-After),
+so it gets fewer keywords (its search is fuzzy, so they overlap anyway) and a 6 s gap."""
+[company.params]
+host = "apply.careers.microsoft.com"
+domain = "microsoft.com"
+api = "pcsx"
+location = "India"
+keywords = ["data scientist", "machine learning", "AI engineer", "generative AI"]
+request_delay_seconds = 6
 
 [[company]]
 name = "EXL"

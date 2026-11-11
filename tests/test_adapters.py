@@ -121,6 +121,34 @@ class EightfoldTests(unittest.TestCase):
         self.assertIn("domain=card.com", http.calls[0][1])
         self.assertIn("location=India", http.calls[0][1])
 
+    def test_pcsx_api(self):
+        cfg = company("Soft", "eightfold", host="apply.careers.soft.com", domain="soft.com",
+                      api="pcsx", location="India")
+
+        def search(url, body):
+            start = int(re.search(r"start=(\d+)", url).group(1))
+            n = 10 if start == 0 else 2
+            return {"status": 200, "data": {"count": 12, "positions": [
+                {"id": 1000 + start + i, "name": f"Data Science IC{i}",
+                 "locations": ["India, Karnataka, Bangalore"], "postedTs": 1794202492,
+                 "positionUrl": f"/careers/job/{1000 + start + i}"} for i in range(n)]}}
+
+        http = FakeHttp([("/api/pcsx/search", search),
+                         ("/api/pcsx/position_details", {"data": {"jobDescription": "<p>2+ years</p>"}})])
+        adapter = EightfoldAdapter(cfg, http)
+        jobs = adapter.fetch_jobs(max_age_days=None)
+        self.assertEqual(len(jobs), 12)
+        self.assertEqual(len(http.calls), 2)
+        self.assertIn("domain=soft.com", http.calls[0][1])
+        self.assertIn("location=India", http.calls[0][1])
+        self.assertEqual(jobs[0].url, "https://apply.careers.soft.com/careers/job/1000")
+        self.assertEqual(jobs[0].location, "India, Karnataka, Bangalore")
+        self.assertIsNotNone(jobs[0].posted)
+        self.assertEqual(adapter.fetch_description(jobs[0]).strip(), "2+ years")
+        self.assertIn("position_id=1000", http.calls[-1][1])
+        with self.assertRaises(ValueError):
+            EightfoldAdapter.validate_params({"host": "a.b.com", "domain": "b.com", "api": "v3"})
+
     def test_custom_domain_host(self):
         EightfoldAdapter.validate_params({"host": "portal.careers.bank.com", "domain": "bank.com"})
         for bad in ("https://portal.careers.bank.com", "portal.careers.bank.com/careers", ""):
