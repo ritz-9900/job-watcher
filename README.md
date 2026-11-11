@@ -37,6 +37,7 @@ alerts on jobs that appear after that. This also applies when you add a company 
 | Optum | `html_links` (Radancy/TalentBrew) | 15 newest per city page: Bengaluru, Hyderabad, Gurgaon, Pune (robots.txt disallows `/search-jobs/`) |
 | Nomura | `html_links` (SAP SuccessFactors) | all listings, 100 per page (its keyword search does not filter; RSS disallowed) |
 | S&P Global | Workday (`SPGI_Careers`) | all India listings via Workday's country filter (~50 jobs; verified 2026-11-11) |
+| HSBC | Eightfold on HSBC's own domain (`portal.careers.hsbc.com`) | site search per keyword within India (verified 2026-11-11) |
 
 ## Search keywords
 

@@ -1,4 +1,5 @@
-"""Eightfold career sites (https://<tenant>.eightfold.ai/careers).
+"""Eightfold career sites (https://<tenant>.eightfold.ai/careers, or a company's own
+domain serving the same app, e.g. portal.careers.hsbc.com).
 
 Uses the JSON endpoint the public Eightfold career page calls:
     GET https://<host>/api/apply/v2/jobs?domain=<domain>&start=..&num=..
@@ -6,11 +7,14 @@ Uses the JSON endpoint the public Eightfold career page calls:
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 from ..textutil import html_to_text
 from .base import Adapter, dedupe
+
+_HOST_RE = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)+$")
 
 
 def _from_epoch(value) -> date | None:
@@ -37,8 +41,10 @@ class EightfoldAdapter(Adapter):
 
     @classmethod
     def validate_params(cls, params):
-        if not str(params.get("host", "")).endswith("eightfold.ai"):
-            raise ValueError("eightfold 'host' should look like '<tenant>.eightfold.ai'")
+        # Bare hostname only (no scheme or path): '<tenant>.eightfold.ai' or a custom domain.
+        if not _HOST_RE.match(str(params.get("host", ""))):
+            raise ValueError("eightfold 'host' should be a bare hostname like '<tenant>.eightfold.ai' "
+                             "or 'portal.careers.example.com'")
         cls._check_keywords(params)
 
     def _query(self, **extra) -> str:

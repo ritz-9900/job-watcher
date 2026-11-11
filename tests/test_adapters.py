@@ -118,6 +118,12 @@ class EightfoldTests(unittest.TestCase):
         self.assertIn("domain=card.com", http.calls[0][1])
         self.assertIn("location=India", http.calls[0][1])
 
+    def test_custom_domain_host(self):
+        EightfoldAdapter.validate_params({"host": "portal.careers.bank.com", "domain": "bank.com"})
+        for bad in ("https://portal.careers.bank.com", "portal.careers.bank.com/careers", ""):
+            with self.assertRaises(ValueError):
+                EightfoldAdapter.validate_params({"host": bad, "domain": "bank.com"})
+
 
 class GreenhouseLeverTests(unittest.TestCase):
     def test_greenhouse(self):
