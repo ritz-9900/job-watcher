@@ -140,8 +140,10 @@ applied_facets = { Country_and_Jurisdiction = ["c4f78be1a8f14da0ab49ce1162348a5e
 name = "Microsoft"
 website = "microsoft.com"
 platform = "eightfold"
-enabled = true
-notes = """Verified live 2026-11-11. careers.microsoft.com uses Eightfold at
+enabled = false   # disabled 2026-11-12: rate-limited (429) repeatedly, see notes
+notes = """DISABLED: Microsoft rate-limited the test laptop twice (HTTP 429 that persisted after a
+5-minute pause), so it is switched off rather than retried harder. Set enabled = true to try
+again later. Verified live 2026-11-11 before the rate limit. careers.microsoft.com uses Eightfold at
 apply.careers.microsoft.com with the newer PCSX search (the v2 API answers 403 "Not
 authorized for PCSX"); robots.txt allows /api/pcsx. Searches each keyword within India.
 Microsoft rate-limits this API (HTTP 429 after a handful of quick requests, no Retry-After),

@@ -41,7 +41,7 @@ alerts on jobs that appear after that. This also applies when you add a company 
 | BCG | Phenom People (`careers.bcg.com`) | all India listings newest first, 10 per page, until the age limit (~60 jobs in 30 days; verified 2026-11-11) |
 | Mastercard | Workday (`CorporateCareers`) | site search per keyword, limited to the Pune, Gurgaon, Bangalore, Hyderabad and (Navi) Mumbai offices (verified 2026-11-11) |
 | Citi | Workday (site `2`) | site search per keyword within India (verified 2026-11-11) |
-| Microsoft | Eightfold, newer PCSX search (`apply.careers.microsoft.com`) | 4 keywords within India, 6 s between requests because Microsoft rate-limits (verified 2026-11-11) |
+| Microsoft (**disabled**) | Eightfold, newer PCSX search (`apply.careers.microsoft.com`) | Works, but Microsoft rate-limited (HTTP 429) after a few requests, so it is off (`enabled = false`). Config kept: 4 keywords within India, 6 s between requests |
 
 **Not watchable:**
 - **Bain & Company.** Its job search API is behind Cloudflare bot protection and returns 403
