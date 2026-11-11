@@ -5,6 +5,8 @@ on:
     # Hourly at :30 UTC from 01:30 to 18:30 UTC = every hour 07:00-00:00 IST (18 runs/day).
     # GitHub may start scheduled runs late (sometimes 5-30+ min) when busy.
     # Keep watcher/site.py SCHEDULE_NOTE in sync with this line.
+    # If scheduled runs stop appearing in the Actions tab, re-pushing this file
+    # re-registers the schedule with GitHub.
     - cron: "30 1-18 * * *"
   workflow_dispatch:
     inputs:
