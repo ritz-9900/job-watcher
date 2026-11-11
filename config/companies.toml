@@ -5,7 +5,12 @@
 # personal computer, copy the job's URL, then run (offline, safe anywhere):
 #     python -m watcher detect "<job url>" --name "Company"
 #
-# Supported platforms: workday, oracle, eightfold, greenhouse, lever, html_links
+# Supported platforms: workday, oracle, eightfold, greenhouse, lever, phenom, html_links
+#
+# Not watchable: Bain & Company. Its job search API (bain.com/en/api/jobsearch/...) is
+# behind Cloudflare bot protection and returns 403 to any non-browser client, and the
+# listings are not in its sitemap. Getting past that would mean evading bot protection,
+# so it is left out (checked 2026-11-11).
 #
 # STATUS: every entry below was verified live (date in its notes). Sites change without
 # notice: if one breaks, run the "Probe career sites" GitHub workflow and check its log.
@@ -77,6 +82,20 @@ within India; descriptions come from the per-job endpoint."""
 host = "portal.careers.hsbc.com"
 domain = "hsbc.com"
 location = "India"
+
+[[company]]
+name = "BCG"
+website = "bcg.com"
+platform = "phenom"
+enabled = true
+notes = """Verified live 2026-11-11. careers.bcg.com is a Phenom People site; robots.txt allows
+search-results and job pages. Its keyword search is semantic (hundreds of loose matches), so
+this reads every India listing newest first (~110 jobs, 10 per page) until the age limit."""
+[company.params]
+host = "careers.bcg.com"
+locale_path = "global/en"
+query = { qcountry = "India" }
+max_pages = 12                # 10 per page; India had 111 jobs on 2026-11-11
 
 [[company]]
 name = "EXL"

@@ -17,7 +17,7 @@ companies.toml ─► adapter per platform ─► filters ─► "seen before?" 
 ```
 
 1. Each enabled company is fetched through its platform adapter (Workday, Oracle,
-   Eightfold, Greenhouse, Lever, or the generic `html_links` adapter).
+   Eightfold, Phenom, Greenhouse, Lever, or the generic `html_links` adapter).
 2. Jobs not seen before are checked against your filters (title keywords, location,
    posting age, and optionally years of experience parsed from the description).
 3. Matches are sent to Telegram (one message per job) and email (one digest per run).
@@ -38,6 +38,11 @@ alerts on jobs that appear after that. This also applies when you add a company 
 | Nomura | `html_links` (SAP SuccessFactors) | all listings, 100 per page (its keyword search does not filter; RSS disallowed) |
 | S&P Global | Workday (`SPGI_Careers`) | all India listings via Workday's country filter (~50 jobs; verified 2026-11-11) |
 | HSBC | Eightfold on HSBC's own domain (`portal.careers.hsbc.com`) | site search per keyword within India (verified 2026-11-11) |
+| BCG | Phenom People (`careers.bcg.com`) | all India listings newest first, 10 per page, until the age limit (~60 jobs in 30 days; verified 2026-11-11) |
+
+**Not watchable: Bain & Company.** Its job search API is behind Cloudflare bot protection
+and returns 403 to non-browser clients, and its sitemap has no job pages. Getting past that
+would mean evading bot protection, so it is not included.
 
 ## Search keywords
 

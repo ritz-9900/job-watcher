@@ -1,3 +1,5 @@
+import json
+import re
 import unittest
 from datetime import date, timedelta
 
@@ -6,6 +8,7 @@ from watcher.adapters.greenhouse import GreenhouseAdapter
 from watcher.adapters.html_links import HtmlLinksAdapter
 from watcher.adapters.lever import LeverAdapter
 from watcher.adapters.oracle import OracleAdapter
+from watcher.adapters.phenom import PhenomAdapter
 from watcher.adapters.workday import WorkdayAdapter, parse_posted_on
 from watcher.http import HttpError
 
@@ -123,6 +126,67 @@ class EightfoldTests(unittest.TestCase):
         for bad in ("https://portal.careers.bank.com", "portal.careers.bank.com/careers", ""):
             with self.assertRaises(ValueError):
                 EightfoldAdapter.validate_params({"host": bad, "domain": "bank.com"})
+
+
+def phenom_page(key, value):
+    """A Phenom-style page: data embedded as JSON inside a script, between other JS."""
+    return ('<html><script>phApp.ddo = {"siteConfig":{"x":1},"%s":%s}; '
+            'phApp.experimentData = {};</script></html>' % (key, json.dumps(value)))
+
+
+class PhenomTests(unittest.TestCase):
+    def setUp(self):
+        self.cfg = company("Consult", "phenom", host="careers.consult.com",
+                           query={"qcountry": "India"})
+
+    @staticmethod
+    def results(offset, total, days_ago):
+        jobs = [{"jobSeqNo": f"C{offset + i}", "title": f"Data Scientist {offset + i}",
+                 "location": "Mumbai, Maharashtra, India",
+                 "postedDate": (date.today() - timedelta(days=days_ago)).isoformat() + "T00:00:00.000+0000"}
+                for i in range(min(10, total - offset))]
+        return phenom_page("eagerLoadRefineSearch", {"status": 200, "totalHits": total, "data": {"jobs": jobs}})
+
+    def test_paging_newest_first_until_total(self):
+        def respond(url, body):
+            offset = int(re.search(r"from=(\d+)", url).group(1)) if "from=" in url else 0
+            return self.results(offset, 25, days_ago=1)
+
+        http = FakeHttp([("/search-results", respond)])
+        jobs = PhenomAdapter(self.cfg, http).fetch_jobs(max_age_days=30)
+        self.assertEqual(len(jobs), 25)
+        self.assertEqual(len(http.calls), 3)
+        first, second = http.calls[0][1], http.calls[1][1]
+        self.assertIn("https://careers.consult.com/global/en/search-results?qcountry=India", first)
+        self.assertIn("sortBy=Most+recent", first)
+        self.assertNotIn("from=", first)
+        self.assertIn("from=10", second)
+        self.assertNotIn("s=1", second)  # s=1 makes Phenom drop the sort
+        self.assertEqual(jobs[0].url, "https://careers.consult.com/global/en/job/C0/Data-Scientist-0")
+        self.assertEqual(jobs[0].posted, date.today() - timedelta(days=1))
+
+    def test_stops_at_age_limit(self):
+        http = FakeHttp([("/search-results", lambda url, body: self.results(0, 100, days_ago=40))])
+        PhenomAdapter(self.cfg, http).fetch_jobs(max_age_days=30)
+        self.assertEqual(len(http.calls), 1)
+
+    def test_description_is_unescaped(self):
+        page = phenom_page("jobDetail", {"data": {"job": {
+            "description": "&lt;p&gt;3+ years of experience in &lt;b&gt;Python&lt;/b&gt;&lt;/p&gt;"}}})
+        http = FakeHttp([("/job/C1/", page)])
+        adapter = PhenomAdapter(self.cfg, http)
+        job = adapter._job(id="C1", title="DS", url="https://careers.consult.com/global/en/job/C1/DS")
+        self.assertEqual(adapter.fetch_description(job).strip(), "3+ years of experience in Python")
+
+    def test_missing_data_is_empty_not_crash(self):
+        http = FakeHttp([("/search-results", "<html>maintenance</html>")])
+        self.assertEqual(PhenomAdapter(self.cfg, http).fetch_jobs(max_age_days=30), [])
+
+    def test_validation(self):
+        with self.assertRaises(ValueError):
+            PhenomAdapter.validate_params({"host": "https://careers.consult.com"})
+        with self.assertRaises(ValueError):
+            PhenomAdapter.validate_params({"host": "careers.consult.com", "query": {"qcountry": 1}})
 
 
 class GreenhouseLeverTests(unittest.TestCase):

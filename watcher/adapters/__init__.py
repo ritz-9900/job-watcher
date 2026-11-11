@@ -8,12 +8,13 @@ from .greenhouse import GreenhouseAdapter
 from .html_links import HtmlLinksAdapter
 from .lever import LeverAdapter
 from .oracle import OracleAdapter
+from .phenom import PhenomAdapter
 from .workday import WorkdayAdapter
 
 ADAPTERS: dict[str, type[Adapter]] = {
     cls.platform: cls
     for cls in (WorkdayAdapter, OracleAdapter, EightfoldAdapter,
-                GreenhouseAdapter, LeverAdapter, HtmlLinksAdapter)
+                GreenhouseAdapter, LeverAdapter, HtmlLinksAdapter, PhenomAdapter)
 }
 
 
