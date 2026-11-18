@@ -58,7 +58,8 @@ title_exclude = [
 # The experience check still drops any of these that ask for 4+ years.
 title_exclude_except = ["Assistant Manager", "Senior Analyst", "Sr Analyst", "Sr. Analyst",
                         "Senior Associate", "Sr Associate", "Sr. Associate"]
-locations = ["Mumbai", "Pune", "Hyderabad", "Bengaluru", "Bangalore", "Gurugram", "Gurgaon"]
+# "Haryana": some sites (e.g. EXL) give only the state for their Gurugram office.
+locations = ["Mumbai", "Pune", "Hyderabad", "Bengaluru", "Bangalore", "Gurugram", "Gurgaon", "Haryana"]
 locations_exclude = []
 # Jobs asking for more than 4 years minimum ("5+ years", "6-8 years") are dropped;
 # jobs asking for up to 4 years ("2-4", "4+") are kept, as are jobs that state no

@@ -72,7 +72,7 @@ def run_once(
         except Exception as exc:  # one broken site must not stop the others
             log.warning("%s: fetch failed: %s", company.name, exc)
             report.failed.append(company.name)
-            alert = store.record_failure(company.name, str(exc), threshold)
+            alert = store.record_failure(company.name, str(exc), threshold, now)
             if alert:
                 report.alerts.append(alert)
             continue

@@ -74,6 +74,17 @@ class SiteTests(unittest.TestCase):
         statuses = {c["name"]: c["status"] for c in build_data(self.config, self.store, NOW)["companies"]}
         self.assertEqual(statuses["Acme"], "error")
 
+    def test_incident_history_kept_and_capped(self):
+        for i in range(35):
+            self.store.record_failure("Acme", f"HTTP 503 #{i}", 3, NOW + timedelta(hours=i))
+        self.store.record_success("Acme", 0, 3, NOW + timedelta(hours=40))
+        incidents = self.store.health_of("Acme")["incidents"]
+        self.assertEqual(len(incidents), 30)                      # capped
+        self.assertEqual(incidents[-2]["detail"], "HTTP 503 #34")
+        self.assertEqual(incidents[-1]["kind"], "empty")
+        self.store.record_success("Acme", 5, 3, NOW + timedelta(hours=41))
+        self.assertEqual(len(self.store.health_of("Acme")["incidents"]), 30)  # history survives recovery
+
     def test_build_site_writes_files(self):
         self.store.remember(job("1"), NOW)
         out = build_site(self.config, self.store, Path(self.tmp.name) / "_site", NOW)

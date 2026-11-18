@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .models import Job
@@ -149,10 +149,20 @@ class Store:
         return removed
 
     # Health ---------------------------------------------------------------
-    def record_failure(self, name: str, error: str, threshold: int) -> str | None:
+    def _log_incident(self, health: dict, now: datetime | None, kind: str, detail: str) -> None:
+        """Keep the last 30 problems per company in the (public) state, so errors can be
+        diagnosed later without access to the Actions logs."""
+        incidents = health.setdefault("incidents", [])
+        incidents.append({"at": _iso(now or datetime.now(timezone.utc)), "kind": kind,
+                          "detail": detail[:300]})
+        del incidents[:-30]
+
+    def record_failure(self, name: str, error: str, threshold: int,
+                       now: datetime | None = None) -> str | None:
         health = self._company(name)["health"]
         health["consecutive_failures"] += 1
         health["last_error"] = error[:300]
+        self._log_incident(health, now, "failure", error)
         if health["consecutive_failures"] >= threshold and not health["alerted"]:
             health["alerted"] = True
             return (f"{name}: fetching failed {health['consecutive_failures']} runs in a row. "
@@ -167,6 +177,7 @@ class Store:
         health["last_error"] = None
         if count == 0 and empty_is_suspicious:
             health["consecutive_empty"] += 1
+            self._log_incident(health, now, "empty", "returned 0 jobs")
             if health["consecutive_empty"] >= threshold and not health["alerted"]:
                 health["alerted"] = True
                 return (f"{name}: returned 0 jobs {health['consecutive_empty']} runs in a row. "
